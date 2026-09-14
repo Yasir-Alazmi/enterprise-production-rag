@@ -2,8 +2,10 @@
 
 import time
 from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 from pydantic import BaseModel, Field
+
 
 class CacheEntry(BaseModel):
     query: str
@@ -24,7 +26,7 @@ class SemanticCache:
     def lookup(self, query: str, query_embedding: np.ndarray) -> Optional[Tuple[str, List[Dict[str, Any]], float]]:
         """Look up similar past queries. Returns (response, citations, similarity) if hit."""
         now = time.time()
-        
+
         # Purge expired entries
         self.cache = [(vec, ent) for vec, ent in self.cache if now - ent.created_at <= self.ttl_seconds]
 

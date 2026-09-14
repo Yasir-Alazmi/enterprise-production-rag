@@ -3,6 +3,7 @@
 import re
 from typing import Optional, Tuple
 
+
 class InjectionDetector:
     """Screens incoming user inputs for jailbreaks and prompt override attempts."""
 

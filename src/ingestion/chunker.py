@@ -2,6 +2,7 @@
 
 import re
 from typing import Any, Dict, List
+
 from pydantic import BaseModel, Field
 
 from src.core.exceptions import ChunkingError
@@ -27,7 +28,7 @@ class RecursiveTokenChunker:
             raise ChunkingError("chunk_size must be greater than zero.")
         if chunk_overlap >= chunk_size:
             raise ChunkingError("chunk_overlap must be strictly less than chunk_size.")
-        
+
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
@@ -45,7 +46,7 @@ class RecursiveTokenChunker:
         # Split document by paragraphs first
         paragraphs = re.split(r"\n\s*\n", document.content)
         current_section = "General"
-        
+
         raw_chunks: List[str] = []
         section_tags: List[str] = []
         current_buffer: List[str] = []
@@ -68,7 +69,7 @@ class RecursiveTokenChunker:
                 chunk_text = " ".join(current_buffer)
                 raw_chunks.append(chunk_text)
                 section_tags.append(current_section)
-                
+
                 # Apply overlap from end of current buffer
                 overlap_buffer: List[str] = []
                 overlap_tokens = 0
@@ -79,7 +80,7 @@ class RecursiveTokenChunker:
                         overlap_tokens += item_tok
                     else:
                         break
-                
+
                 current_buffer = overlap_buffer + [para]
                 current_tokens = overlap_tokens + para_tokens
             else:

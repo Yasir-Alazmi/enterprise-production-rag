@@ -1,9 +1,11 @@
 """Unit tests for document parsing and recursive chunking."""
 
 import pytest
+
 from src.core.exceptions import ChunkingError
 from src.ingestion.chunker import RecursiveTokenChunker
 from src.ingestion.parser import Document, DocumentParser
+
 
 def test_chunker_invalid_parameters():
     with pytest.raises(ChunkingError):
@@ -14,7 +16,7 @@ def test_chunker_invalid_parameters():
 def test_chunker_splits_document_correctly(sample_document: Document):
     chunker = RecursiveTokenChunker(chunk_size=50, chunk_overlap=10)
     chunks = chunker.split_document(sample_document)
-    
+
     assert len(chunks) >= 1
     for chunk in chunks:
         assert chunk.document_id == sample_document.id

@@ -3,6 +3,7 @@
 import re
 from typing import Dict, List, Set
 
+
 class RAGEvaluator:
     """Computes empirical quality metrics on retrieved context and generated answers."""
 
@@ -28,7 +29,7 @@ class RAGEvaluator:
         """Calculate Context Recall: fraction of ground truth documents retrieved."""
         if not ground_truth_ids:
             return 0.0
-        
+
         retrieved_set = set(retrieved_ids)
         hits = sum(1 for gt in ground_truth_ids if gt in retrieved_set)
         return round(hits / len(ground_truth_ids), 4)

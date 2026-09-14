@@ -2,11 +2,11 @@
 
 import time
 from typing import List
+
 from fastapi import APIRouter, HTTPException, status
 
 from src.api.schemas import (
     Citation,
-    DocumentPayload,
     EvalRequest,
     EvalResponse,
     HealthResponse,
@@ -15,6 +15,7 @@ from src.api.schemas import (
     QueryRequest,
     QueryResponse,
 )
+from src.cache.semantic_cache import SemanticCache
 from src.core.config import settings
 from src.core.logging import get_logger
 from src.evaluation.metrics import RAGEvaluator
@@ -22,11 +23,10 @@ from src.guardrails.injection_detector import InjectionDetector
 from src.guardrails.pii_sanitizer import PIISanitizer
 from src.ingestion.chunker import RecursiveTokenChunker, TextChunk
 from src.ingestion.parser import Document
+from src.reranker.cross_encoder import CrossEncoderReranker
 from src.retrieval.hybrid_retriever import HybridRetriever
 from src.retrieval.sparse_search import BM25Index
 from src.retrieval.vector_store import DenseVectorStore
-from src.reranker.cross_encoder import CrossEncoderReranker
-from src.cache.semantic_cache import SemanticCache
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1")
@@ -58,7 +58,7 @@ def health_check() -> HealthResponse:
 def ingest_documents(payload: IngestRequest) -> IngestResponse:
     """Ingest, chunk, and index a collection of documents."""
     all_chunks: List[TextChunk] = []
-    
+
     for doc_payload in payload.documents:
         doc = Document(
             id=doc_payload.id,
@@ -140,7 +140,7 @@ def query_pipeline(request: QueryRequest) -> QueryResponse:
     # 6. Structured Grounded Answer Synthesis
     top_chunks = [chunk for chunk, _ in reranked[:request.top_k]]
     citations: List[Citation] = []
-    
+
     for chunk, score in reranked[:request.top_k]:
         snippet = chunk.content[:200] + "..." if len(chunk.content) > 200 else chunk.content
         citations.append(Citation(

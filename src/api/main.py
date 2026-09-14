@@ -2,11 +2,12 @@
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import router, ingest_documents
-from src.api.schemas import IngestRequest, DocumentPayload
+from src.api.routes import ingest_documents, router
+from src.api.schemas import DocumentPayload, IngestRequest
 from src.core.config import settings
 from src.core.logging import get_logger
 from src.ingestion.parser import DocumentParser
@@ -17,7 +18,7 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     """Load sample enterprise documents on startup to ensure zero-friction demonstration."""
     logger.info("Initializing Enterprise RAG service [%s]...", settings.app_env)
-    
+
     # Auto-index sample documents if available
     sample_dir = Path(__file__).resolve().parent.parent.parent / "data" / "sample_documents"
     if sample_dir.exists():

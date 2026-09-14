@@ -7,6 +7,7 @@ from typing import Dict, List, Set, Tuple
 
 from src.ingestion.chunker import TextChunk
 
+
 class BM25Index:
     """Inverted index implementing BM25Okapi scoring."""
 

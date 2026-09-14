@@ -1,11 +1,13 @@
 """Dense vector store and normalized embedding similarity engine."""
 
 import hashlib
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
+
 import numpy as np
 
 from src.ingestion.chunker import TextChunk
 from src.retrieval.sparse_search import BM25Index
+
 
 class DenseVectorStore:
     """In-memory vector database with L2-normalized cosine search."""

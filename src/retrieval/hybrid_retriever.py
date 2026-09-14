@@ -1,9 +1,11 @@
 """Hybrid retriever fusing Dense and Sparse rankings via Reciprocal Rank Fusion (RRF)."""
 
 from typing import Dict, List, Tuple
+
 from src.ingestion.chunker import TextChunk
 from src.retrieval.sparse_search import BM25Index
 from src.retrieval.vector_store import DenseVectorStore
+
 
 class HybridRetriever:
     """Combines BM25 lexical precision with dense semantic recall."""
@@ -33,7 +35,7 @@ class HybridRetriever:
 
         # Sort candidate chunks by fused score
         ranked = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
-        
+
         output: List[Tuple[TextChunk, float]] = []
         for chunk_id, fused_score in ranked[:top_k]:
             chunk = self.vector_store.chunks_map.get(chunk_id) or self.bm25_index.chunks_map.get(chunk_id)

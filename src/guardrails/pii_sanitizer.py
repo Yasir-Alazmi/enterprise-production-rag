@@ -3,6 +3,7 @@
 import re
 from typing import List, Tuple
 
+
 class PIISanitizer:
     """Detects and redacts sensitive patterns to ensure enterprise data compliance."""
 

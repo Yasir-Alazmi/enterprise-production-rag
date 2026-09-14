@@ -2,9 +2,11 @@
 
 from pathlib import Path
 from typing import Any, Dict
+
 import yaml
-from pydantic_settings import BaseSettings
 from pydantic import Field
+from pydantic_settings import BaseSettings
+
 
 class Settings(BaseSettings):
     app_name: str = Field(default="enterprise-production-rag")
@@ -36,7 +38,7 @@ class Settings(BaseSettings):
         if path.exists():
             with open(path, "r", encoding="utf-8") as f:
                 raw = yaml.safe_load(f) or {}
-            
+
             flat: Dict[str, Any] = {}
             if "app" in raw:
                 flat["app_name"] = raw["app"].get("name", "enterprise-production-rag")

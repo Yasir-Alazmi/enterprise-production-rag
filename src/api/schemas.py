@@ -1,7 +1,9 @@
 """Pydantic v2 schemas for API contracts."""
 
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
+
 
 class DocumentPayload(BaseModel):
     id: str = Field(..., description="Unique document identifier")

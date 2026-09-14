@@ -3,6 +3,7 @@
 import logging
 import sys
 
+
 def get_logger(name: str) -> logging.Logger:
     """Return a configured logger with standard formatting."""
     logger = logging.getLogger(name)

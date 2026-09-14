@@ -1,9 +1,10 @@
 """Cross-encoder reranker scoring query-document pairs jointly."""
 
-import math
 from typing import List, Tuple
+
 from src.ingestion.chunker import TextChunk
 from src.retrieval.sparse_search import BM25Index
+
 
 class CrossEncoderReranker:
     """Eliminates dense false positives by evaluating joint text interactions."""
@@ -39,7 +40,7 @@ class CrossEncoderReranker:
 
             # Joint cross-interaction score
             raw_score = 0.5 * coverage + 0.3 * min(1.0, density * 5.0) + 0.2 * pos_weight
-            
+
             # Blend with initial hybrid retrieval signal
             final_score = 0.7 * raw_score + 0.3 * min(1.0, base_score * 50.0)
             reranked.append((chunk, round(final_score, 4)))
