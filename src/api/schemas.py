@@ -42,6 +42,8 @@ class QueryResponse(BaseModel):
     citations: List[Citation]
     cached: bool
     latency_ms: float
+    retrieval_latency_ms: Optional[float] = None
+    generation_latency_ms: Optional[float] = None
     sanitized: bool
     detected_pii: List[str] = Field(default_factory=list)
 
@@ -50,15 +52,19 @@ class EvalRequest(BaseModel):
     ground_truth_ids: List[str]
     answer: str
     context_chunks: List[str]
+    query: Optional[str] = None
 
 class EvalResponse(BaseModel):
     context_precision: float
     context_recall: float
+    mrr: Optional[float] = None
+    ndcg_at_5: Optional[float] = None
     faithfulness: float
+    answer_relevance: Optional[float] = None
 
 class HealthResponse(BaseModel):
     status: str = "healthy"
-    version: str = "0.2.0"
+    version: str = "0.4.0"
     indexed_chunks: int
     cache_entries: int
     cache_stats: Dict[str, Any]

@@ -1,7 +1,7 @@
 """Application configuration using Pydantic Settings."""
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import yaml
 from pydantic import Field
@@ -28,9 +28,22 @@ class Settings(BaseSettings):
     cache_similarity_threshold: float = Field(default=0.92)
     cache_ttl_seconds: int = Field(default=3600)
 
-    # Security
+    # Security & Guardrails
     enable_pii_masking: bool = Field(default=True)
     enable_injection_detection: bool = Field(default=True)
+    jwt_secret_key: str = Field(default="enterprise-rag-default-insecure-secret-key-change-in-prod")
+    jwt_algorithm: str = Field(default="HS256")
+    api_tokens_json: Optional[str] = Field(default=None)
+
+    # Embedding Provider Configuration
+    embedding_provider: str = Field(default="deterministic")
+    embedding_dimension: int = Field(default=128)
+
+    # Generation Engine Configuration
+    generation_provider: str = Field(default="deterministic")
+    openai_api_key: Optional[str] = Field(default=None)
+    openai_model: str = Field(default="gpt-4o-mini")
+    ollama_base_url: str = Field(default="http://localhost:11434")
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Settings":

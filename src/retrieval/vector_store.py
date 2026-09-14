@@ -1,4 +1,4 @@
-"""Dense vector store with disk persistence, RBAC filtering, and idempotent deletion."""
+"""Dense vector store with pluggable embedding engines, disk persistence, and RBAC filtering."""
 
 import hashlib
 import json
@@ -10,36 +10,29 @@ import numpy as np
 from src.core.logging import get_logger
 from src.core.security import AccessControlManager
 from src.ingestion.chunker import TextChunk
-from src.retrieval.sparse_search import BM25Index
+from src.retrieval.embeddings import BaseEmbeddingEngine, DeterministicHashingEmbedding
 
 logger = get_logger(__name__)
 
-class DenseVectorStore:
-    """In-memory vector store with atomic disk persistence, ACL filtering, and deletion."""
 
-    def __init__(self, dimension: int = 128):
-        self.dimension = dimension
+class DenseVectorStore:
+    """In-memory vector store with atomic disk persistence, ACL filtering, and pluggable embeddings."""
+
+    def __init__(
+        self,
+        dimension: int = 128,
+        embedding_engine: Optional[BaseEmbeddingEngine] = None
+    ):
+        self.embedding_engine: BaseEmbeddingEngine = (
+            embedding_engine or DeterministicHashingEmbedding(dimension=dimension)
+        )
+        self.dimension = self.embedding_engine.dimension
         self.vectors: Dict[str, np.ndarray] = {}
         self.chunks_map: Dict[str, TextChunk] = {}
 
     def _embed(self, text: str) -> np.ndarray:
-        """Deterministic, normalized pseudo-semantic feature projection."""
-        tokens = BM25Index.tokenize(text)
-        vec = np.zeros(self.dimension, dtype=np.float32)
-        if not tokens:
-            return vec
-
-        for idx, token in enumerate(tokens):
-            h = int(hashlib.sha256(token.encode("utf-8")).hexdigest()[:8], 16)
-            pos = h % self.dimension
-            sign = 1.0 if (h // self.dimension) % 2 == 0 else -1.0
-            weight = 1.0 / (1.0 + 0.05 * idx)
-            vec[pos] += sign * weight
-
-        norm = np.linalg.norm(vec)
-        if norm > 1e-6:
-            vec /= norm
-        return vec
+        """Delegate vector projection to the configured embedding engine."""
+        return self.embedding_engine.embed_text(text)
 
     def delete_document(self, document_id: str) -> int:
         """Remove all chunks associated with a document_id. Returns number of removed chunks."""
@@ -139,7 +132,7 @@ class DenseVectorStore:
                 logger.error("Vector store checksum mismatch: corrupted snapshot!")
                 return False
 
-            self.dimension = payload.get("dimension", 128)
+            self.dimension = payload.get("dimension", self.dimension)
             self.chunks_map = {cid: TextChunk(**data) for cid, data in payload.get("chunks", {}).items()}
             self.vectors = {cid: np.array(vec, dtype=np.float32) for cid, vec in payload.get("vectors", {}).items()}
             return True

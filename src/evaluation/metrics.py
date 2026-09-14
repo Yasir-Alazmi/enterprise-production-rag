@@ -58,16 +58,67 @@ class RAGEvaluator:
 
         return round(supported / max(1, len(sentences)), 4)
 
+    @staticmethod
+    def mrr(retrieved_ids: List[str], ground_truth_ids: List[str]) -> float:
+        """Calculate Mean Reciprocal Rank (MRR) for the first relevant item."""
+        if not retrieved_ids or not ground_truth_ids:
+            return 0.0
+
+        gt_set: Set[str] = set(ground_truth_ids)
+        for rank, doc_id in enumerate(retrieved_ids, start=1):
+            if doc_id in gt_set:
+                return round(1.0 / rank, 4)
+        return 0.0
+
+    @staticmethod
+    def ndcg_at_k(retrieved_ids: List[str], ground_truth_ids: List[str], k: int = 5) -> float:
+        """Calculate Normalized Discounted Cumulative Gain (NDCG@K) with binary relevance."""
+        if not retrieved_ids or not ground_truth_ids or k <= 0:
+            return 0.0
+
+        import math
+
+        gt_set: Set[str] = set(ground_truth_ids)
+        dcg = 0.0
+        for rank, doc_id in enumerate(retrieved_ids[:k], start=1):
+            if doc_id in gt_set:
+                dcg += 1.0 / math.log2(rank + 1)
+
+        idcg = sum(1.0 / math.log2(r + 1) for r in range(1, min(k, len(ground_truth_ids)) + 1))
+        if idcg <= 0.0:
+            return 0.0
+        return round(dcg / idcg, 4)
+
+    @staticmethod
+    def answer_relevance(query: str, answer: str) -> float:
+        """Compute keyword relevance overlap between query tokens and generated answer."""
+        if not query.strip() or not answer.strip():
+            return 0.0
+
+        q_tokens = set(re.findall(r"\b[a-zA-Z0-9_]{3,}\b", query.lower()))
+        a_tokens = set(re.findall(r"\b[a-zA-Z0-9_]{3,}\b", answer.lower()))
+        if not q_tokens or not a_tokens:
+            return 0.0
+
+        overlap = len(q_tokens.intersection(a_tokens))
+        return round(overlap / len(q_tokens), 4)
+
     def evaluate_query(
         self,
         retrieved_ids: List[str],
         ground_truth_ids: List[str],
         answer: str,
-        context_chunks: List[str]
+        context_chunks: List[str],
+        query: str = "",
     ) -> Dict[str, float]:
-        """Compute end-to-end evaluation metrics for a query execution."""
-        return {
+        """Compute comprehensive empirical evaluation metrics for a query execution."""
+        results = {
             "context_precision": self.context_precision(retrieved_ids, ground_truth_ids),
             "context_recall": self.context_recall(retrieved_ids, ground_truth_ids),
+            "mrr": self.mrr(retrieved_ids, ground_truth_ids),
+            "ndcg_at_5": self.ndcg_at_k(retrieved_ids, ground_truth_ids, k=5),
             "faithfulness": self.faithfulness(answer, context_chunks)
         }
+        if query:
+            results["answer_relevance"] = self.answer_relevance(query, answer)
+        return results

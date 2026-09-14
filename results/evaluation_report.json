@@ -1,0 +1,122 @@
+{
+  "metadata": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python_version": "3.13.14",
+    "timestamp": "2026-09-14 11:29:01",
+    "queries_evaluated": 4
+  },
+  "aggregate_metrics": {
+    "mean_context_precision": 0.8333,
+    "mean_context_recall": 1.0,
+    "mean_mrr": 0.8333,
+    "mean_ndcg_at_5": 0.875,
+    "mean_faithfulness": 0.6792,
+    "mean_answer_relevance": 0.598
+  },
+  "latency_breakdown_averages_ms": {
+    "retrieval_mean_ms": 0.25,
+    "generation_mean_ms": 0.11
+  },
+  "query_details": [
+    {
+      "query": "What is the mandatory monthly uptime requirement for enterprise cloud infrastructure?",
+      "retrieved_doc_ids": [
+        "sec_sla_001",
+        "hr_policy_test",
+        "hr_leave_002"
+      ],
+      "ground_truth_ids": [
+        "sec_sla_001"
+      ],
+      "answer": "Based on verified enterprise policies, Enterprise cloud infrastructure requires 99.95% monthly uptime. [Cloud Security SLA - General] Furthermore, Annual vacation entitlement is 30 calendar days per annum for full-time employees. [Corporate Leave Policy - General] Additionally, Annual vacation entitlement is 30 calendar days per annum for full-time employees. [Corporate Leave Policy - General]",
+      "metrics": {
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "faithfulness": 0.8,
+        "answer_relevance": 0.6
+      },
+      "latency_breakdown_ms": {
+        "total": 3.82,
+        "retrieval": 0.24,
+        "generation": 0.19
+      }
+    },
+    {
+      "query": "How many days of annual vacation are full-time employees entitled to?",
+      "retrieved_doc_ids": [
+        "hr_leave_002",
+        "hr_policy_test",
+        "public_faq_01"
+      ],
+      "ground_truth_ids": [
+        "hr_leave_002"
+      ],
+      "answer": "Based on verified enterprise policies, Annual vacation entitlement is 30 calendar days per annum for full-time employees. [Corporate Leave Policy - General] Furthermore, Annual vacation entitlement is 30 calendar days per annum for full-time employees. [Corporate Leave Policy - General]",
+      "metrics": {
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "faithfulness": 0.6667,
+        "answer_relevance": 0.6
+      },
+      "latency_breakdown_ms": {
+        "total": 2.53,
+        "retrieval": 0.23,
+        "generation": 0.07
+      }
+    },
+    {
+      "query": "What are the security requirements for the root HSM key ceremony in Zurich?",
+      "retrieved_doc_ids": [
+        "crypto_audit_003",
+        "ciso_audit_report_2026",
+        "public_faq_01"
+      ],
+      "ground_truth_ids": [
+        "crypto_audit_003"
+      ],
+      "answer": "Based on verified enterprise policies, Dual-custody M-of-N key ceremonies require at least three authorized security officers in the Zurich vault. [CISO Root Key Ceremony - General] Furthermore, Secret root HSM key ceremony performed in Zurich vault. [CISO Cryptographic Audit - General] Additionally, All prospective candidates must submit their application through the portal. [Public Career FAQ - General]",
+      "metrics": {
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "faithfulness": 0.75,
+        "answer_relevance": 0.6364
+      },
+      "latency_breakdown_ms": {
+        "total": 3.07,
+        "retrieval": 0.27,
+        "generation": 0.06
+      }
+    },
+    {
+      "query": "What is the required response time for P1 critical security incidents?",
+      "retrieved_doc_ids": [
+        "hr_policy_test",
+        "hr_leave_002",
+        "sec_sla_001"
+      ],
+      "ground_truth_ids": [
+        "sec_sla_001"
+      ],
+      "answer": "Based on verified enterprise policies, Annual vacation entitlement is 30 calendar days per annum for full-time employees. [Corporate Leave Policy - General] Furthermore, Annual vacation entitlement is 30 calendar days per annum for full-time employees. [Corporate Leave Policy - General] Additionally, Incident response for P1 critical events must occur within 15 minutes. [Cloud Security SLA - General]",
+      "metrics": {
+        "context_precision": 0.3333,
+        "context_recall": 1.0,
+        "mrr": 0.3333,
+        "ndcg_at_5": 0.5,
+        "faithfulness": 0.5,
+        "answer_relevance": 0.5556
+      },
+      "latency_breakdown_ms": {
+        "total": 2.49,
+        "retrieval": 0.27,
+        "generation": 0.1
+      }
+    }
+  ]
+}
