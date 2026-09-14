@@ -1,4 +1,4 @@
-"""BM25 Okapi sparse search with RBAC filtering and disk persistence."""
+"""BM25 Okapi sparse search with RBAC filtering, persistence, and document deletion."""
 
 import json
 import math
@@ -12,7 +12,7 @@ from src.ingestion.chunker import TextChunk
 
 
 class BM25Index:
-    """Inverted index implementing BM25Okapi scoring with ACL filtering."""
+    """Inverted index implementing BM25Okapi scoring with ACL filtering and deletion."""
 
     def __init__(self, k1: float = 1.5, b: float = 0.75):
         self.k1 = k1
@@ -29,8 +29,37 @@ class BM25Index:
         """Normalize and tokenize text into lowercase alphanumeric terms."""
         return re.findall(r"\b[a-zA-Z0-9_]{2,}\b", text.lower())
 
+    def delete_document(self, document_id: str) -> int:
+        """Remove all chunks associated with a document_id and rebuild inverted index structures."""
+        chunks_to_remove = [cid for cid, c in self.chunks_map.items() if c.document_id == document_id]
+        if not chunks_to_remove:
+            return 0
+
+        # Remove chunks and rebuild index cleanly
+        remaining_chunks = [c for cid, c in self.chunks_map.items() if c.document_id != document_id]
+        self.clear()
+        if remaining_chunks:
+            self.index_chunks(remaining_chunks)
+        return len(chunks_to_remove)
+
+    def clear(self) -> None:
+        """Reset index structures."""
+        self.doc_len.clear()
+        self.avg_doc_len = 0.0
+        self.doc_count = 0
+        self.term_doc_freq.clear()
+        self.inverted_index.clear()
+        self.chunks_map.clear()
+
     def index_chunks(self, chunks: List[TextChunk]) -> None:
-        """Build or update the inverted index with provided chunks."""
+        """Build or update the inverted index with deduplication."""
+        # Deduplicate incoming document chunks
+        doc_ids = {c.document_id for c in chunks}
+        for doc_id in doc_ids:
+            # If doc already exists, purge old chunks first
+            if any(c.document_id == doc_id for c in self.chunks_map.values()):
+                self.delete_document(doc_id)
+
         for chunk in chunks:
             self.chunks_map[chunk.chunk_id] = chunk
             tokens = self.tokenize(chunk.content)

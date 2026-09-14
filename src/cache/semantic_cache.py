@@ -1,4 +1,4 @@
-"""Bounded LRU semantic query cache with memory protection."""
+"""Bounded LRU semantic query cache with Role-Based Access Control scoping."""
 
 import time
 from collections import OrderedDict
@@ -12,11 +12,12 @@ class CacheEntry(BaseModel):
     query: str
     response: str
     citations: List[Dict[str, Any]]
+    clearance_level: int = Field(default=1, description="ClassificationLevel integer (0=PUBLIC, 1=INTERNAL, 2=CONFIDENTIAL, 3=RESTRICTED)")
     created_at: float = Field(default_factory=time.time)
     last_accessed: float = Field(default_factory=time.time)
 
 class SemanticCache:
-    """Bounded vector cache with LRU eviction and cosine threshold matching."""
+    """Role-scoped bounded vector cache with LRU eviction and zero cross-clearance leakage."""
 
     def __init__(self, similarity_threshold: float = 0.92, ttl_seconds: int = 3600, max_entries: int = 1000):
         self.similarity_threshold = similarity_threshold
@@ -26,9 +27,15 @@ class SemanticCache:
         self.hits: int = 0
         self.misses: int = 0
         self.evictions: int = 0
+        self.clearance_denials: int = 0
 
-    def lookup(self, query: str, query_embedding: np.ndarray) -> Optional[Tuple[str, List[Dict[str, Any]], float]]:
-        """Look up similar past queries. Moves accessed key to most-recently-used on hit."""
+    def lookup(
+        self,
+        query: str,
+        query_embedding: np.ndarray,
+        user_clearance: int = 1
+    ) -> Optional[Tuple[str, List[Dict[str, Any]], float]]:
+        """Look up similar past queries, strictly enforcing that user_clearance >= cached clearance_level."""
         now = time.time()
 
         # Purge expired entries
@@ -57,35 +64,49 @@ class SemanticCache:
                 best_entry = entry
 
         if best_score >= self.similarity_threshold and best_entry is not None and best_key is not None:
+            # Enforce Role Clearance Scoping
+            if user_clearance < best_entry.clearance_level:
+                # User has insufficient clearance to view this cached answer!
+                self.clearance_denials += 1
+                self.misses += 1
+                return None
+
             self.hits += 1
             best_entry.last_accessed = now
-            self.cache.move_to_end(best_key)  # Mark as recently used
+            self.cache.move_to_end(best_key)
             return best_entry.response, best_entry.citations, round(best_score, 4)
 
         self.misses += 1
         return None
 
-    def store(self, query: str, query_embedding: np.ndarray, response: str, citations: List[Dict[str, Any]]) -> None:
-        """Store a new query-response pair, evicting the least recently used entry if full."""
+    def store(
+        self,
+        query: str,
+        query_embedding: np.ndarray,
+        response: str,
+        citations: List[Dict[str, Any]],
+        clearance_level: int = 1
+    ) -> None:
+        """Store a query-response pair bound to its security clearance level."""
         if query_embedding is None:
             return
 
-        # Enforce capacity via LRU eviction
         if len(self.cache) >= self.max_entries:
-            self.cache.popitem(last=False)  # Evict oldest
+            self.cache.popitem(last=False)
             self.evictions += 1
 
         entry = CacheEntry(
             query=query,
             response=response,
             citations=citations,
+            clearance_level=clearance_level,
             created_at=time.time(),
             last_accessed=time.time()
         )
         self.cache[query] = (query_embedding, entry)
 
     def stats(self) -> Dict[str, Any]:
-        """Return cache health and eviction statistics."""
+        """Return cache health, evictions, and clearance denial statistics."""
         total = self.hits + self.misses
         hit_rate = (self.hits / total) if total > 0 else 0.0
         return {
@@ -94,6 +115,7 @@ class SemanticCache:
             "hits": self.hits,
             "misses": self.misses,
             "evictions": self.evictions,
+            "clearance_denials": self.clearance_denials,
             "hit_rate": round(hit_rate, 4),
             "similarity_threshold": self.similarity_threshold,
             "ttl_seconds": self.ttl_seconds
@@ -105,3 +127,4 @@ class SemanticCache:
         self.hits = 0
         self.misses = 0
         self.evictions = 0
+        self.clearance_denials = 0

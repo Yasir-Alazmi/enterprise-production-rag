@@ -1,10 +1,10 @@
-"""API Route definitions and RAG pipeline execution with RBAC and Observability."""
+"""API Route definitions and Generative RAG pipeline execution with Bearer Auth."""
 
 import time
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Header, HTTPException, Response, status
 
 from src.api.schemas import (
     Citation,
@@ -20,7 +20,9 @@ from src.cache.semantic_cache import SemanticCache
 from src.core.config import settings
 from src.core.logging import get_logger
 from src.core.metrics import metrics_collector
+from src.core.security import AccessControlManager
 from src.evaluation.metrics import RAGEvaluator
+from src.generation.generator import EnterpriseSynthesisGenerator
 from src.guardrails.injection_detector import InjectionDetector
 from src.guardrails.pii_sanitizer import PIISanitizer
 from src.ingestion.chunker import RecursiveTokenChunker, TextChunk
@@ -41,6 +43,7 @@ bm25_index = BM25Index(k1=settings.sparse_k1, b=settings.sparse_b)
 vector_store = DenseVectorStore(dimension=128)
 hybrid_retriever = HybridRetriever(bm25_index=bm25_index, vector_store=vector_store, alpha=settings.hybrid_alpha)
 reranker = CrossEncoderReranker(top_k=settings.rerank_top_k)
+generator = EnterpriseSynthesisGenerator(min_relevance_threshold=0.20)
 sanitizer = PIISanitizer()
 injection_detector = InjectionDetector()
 semantic_cache = SemanticCache(
@@ -67,6 +70,29 @@ def metrics() -> Response:
         indexed_chunks=len(vector_store.chunks_map)
     )
     return Response(content=text_content, media_type="text/plain; version=0.0.4; charset=utf-8")
+
+@router.delete("/documents/{document_id}")
+def delete_document(document_id: str) -> dict:
+    """Delete all chunks for a document from vector and sparse indexes."""
+    v_del = vector_store.delete_document(document_id)
+    b_del = bm25_index.delete_document(document_id)
+
+    # Update persistent store
+    vector_store.save_to_disk(STORAGE_DIR)
+    bm25_index.save_to_disk(STORAGE_DIR)
+
+    if v_del == 0 and b_del == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document '{document_id}' not found in any index."
+        )
+
+    logger.info("Deleted document '%s' (vector chunks: %d, bm25 chunks: %d)", document_id, v_del, b_del)
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "deleted_chunks": max(v_del, b_del)
+    }
 
 @router.post("/ingest", response_model=IngestResponse, status_code=status.HTTP_201_CREATED)
 def ingest_documents(payload: IngestRequest) -> IngestResponse:
@@ -100,11 +126,20 @@ def ingest_documents(payload: IngestRequest) -> IngestResponse:
     )
 
 @router.post("/query", response_model=QueryResponse)
-def query_pipeline(request: QueryRequest) -> QueryResponse:
-    """Execute end-to-end RAG query with RBAC clearance, guardrails, and caching."""
+def query_pipeline(
+    request: QueryRequest,
+    authorization: Optional[str] = Header(default=None)
+) -> QueryResponse:
+    """Execute end-to-end Generative RAG with Bearer Auth, RBAC, and role-scoped caching."""
     start_time = time.perf_counter()
 
-    # 1. Adversarial Injection Screening
+    # 1. Bearer Token Identity Resolution
+    resolved_role, clearance = AccessControlManager.resolve_bearer_identity(
+        auth_header=authorization,
+        fallback_role=request.user_role
+    )
+
+    # 2. Adversarial Injection Screening
     if settings.enable_injection_detection:
         is_safe, violation = injection_detector.validate_prompt(request.query)
         if not is_safe:
@@ -114,17 +149,21 @@ def query_pipeline(request: QueryRequest) -> QueryResponse:
                 detail={"error": "SecurityViolation", "message": violation}
             )
 
-    # 2. PII Sanitization
+    # 3. PII Sanitization
     sanitized_query = request.query
     detected_pii: List[str] = []
     was_sanitized = False
     if settings.enable_pii_masking:
         sanitized_query, was_sanitized, detected_pii = sanitizer.sanitize(request.query)
 
-    # 3. Semantic Cache Check (scoped to identical queries)
+    # 4. Role-Scoped Semantic Cache Check
     query_vec = vector_store._embed(sanitized_query)
     if request.enable_cache:
-        cached_result = semantic_cache.lookup(sanitized_query, query_vec)
+        cached_result = semantic_cache.lookup(
+            sanitized_query,
+            query_vec,
+            user_clearance=int(clearance.value)
+        )
         if cached_result is not None:
             cached_ans, cached_cits_raw, _ = cached_result
             citations = [Citation(**c) for c in cached_cits_raw]
@@ -139,11 +178,11 @@ def query_pipeline(request: QueryRequest) -> QueryResponse:
                 detected_pii=detected_pii
             )
 
-    # 4. Hybrid Retrieval with RBAC filtering
+    # 5. Hybrid Retrieval with RBAC filtering
     candidates = hybrid_retriever.search(
         sanitized_query,
         top_k=request.top_k * 2,
-        user_role=request.user_role
+        user_role=resolved_role
     )
 
     if not candidates:
@@ -158,14 +197,15 @@ def query_pipeline(request: QueryRequest) -> QueryResponse:
             detected_pii=detected_pii
         )
 
-    # 5. Cross-Encoder Reranking
+    # 6. Cross-Encoder Reranking
     reranked = reranker.rerank(sanitized_query, candidates)
 
-    # 6. Structured Grounded Answer Synthesis
-    top_chunks = [chunk for chunk, _ in reranked[:request.top_k]]
-    citations: List[Citation] = []
+    # 7. Multi-Source Generative Answer Synthesis
+    top_candidates = reranked[:request.top_k]
+    gen_result = generator.generate_answer(sanitized_query, top_candidates)
 
-    for chunk, score in reranked[:request.top_k]:
+    citations: List[Citation] = []
+    for chunk, score in top_candidates:
         snippet = chunk.content[:200] + "..." if len(chunk.content) > 200 else chunk.content
         citations.append(Citation(
             chunk_id=chunk.chunk_id,
@@ -176,20 +216,21 @@ def query_pipeline(request: QueryRequest) -> QueryResponse:
             relevance_score=score
         ))
 
-    primary_chunk = top_chunks[0]
-    sec = primary_chunk.metadata.get("section", "General")
-    doc_title = primary_chunk.metadata.get("document_title", primary_chunk.document_id)
-    answer = f"According to {doc_title} (Section: {sec}), {primary_chunk.content.strip()}"
-
-    # 7. Store in Bounded LRU Cache
-    if request.enable_cache:
+    # 8. Store in Role-Scoped Cache
+    if request.enable_cache and gen_result.grounded:
         cits_dict = [c.model_dump() for c in citations]
-        semantic_cache.store(sanitized_query, query_vec, answer, cits_dict)
+        semantic_cache.store(
+            sanitized_query,
+            query_vec,
+            gen_result.answer,
+            cits_dict,
+            clearance_level=int(clearance.value)
+        )
 
     elapsed_ms = (time.perf_counter() - start_time) * 1000.0
     return QueryResponse(
         query=request.query,
-        answer=answer,
+        answer=gen_result.answer,
         citations=citations,
         cached=False,
         latency_ms=round(elapsed_ms, 2),

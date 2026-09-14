@@ -1,4 +1,4 @@
-"""Dense vector store with disk persistence, checksum validation, and RBAC filtering."""
+"""Dense vector store with disk persistence, RBAC filtering, and idempotent deletion."""
 
 import hashlib
 import json
@@ -15,7 +15,7 @@ from src.retrieval.sparse_search import BM25Index
 logger = get_logger(__name__)
 
 class DenseVectorStore:
-    """In-memory vector store with atomic disk persistence and ACL filtering."""
+    """In-memory vector store with atomic disk persistence, ACL filtering, and deletion."""
 
     def __init__(self, dimension: int = 128):
         self.dimension = dimension
@@ -41,8 +41,23 @@ class DenseVectorStore:
             vec /= norm
         return vec
 
+    def delete_document(self, document_id: str) -> int:
+        """Remove all chunks associated with a document_id. Returns number of removed chunks."""
+        chunks_to_remove = [cid for cid, c in self.chunks_map.items() if c.document_id == document_id]
+        for cid in chunks_to_remove:
+            self.chunks_map.pop(cid, None)
+            self.vectors.pop(cid, None)
+        if chunks_to_remove:
+            logger.info("Removed %d chunks for document '%s' from vector store", len(chunks_to_remove), document_id)
+        return len(chunks_to_remove)
+
     def index_chunks(self, chunks: List[TextChunk]) -> None:
-        """Generate embeddings and index candidate chunks."""
+        """Generate embeddings and index candidate chunks with deduplication."""
+        # Clean existing chunks for documents being re-indexed (idempotent upsert)
+        doc_ids_to_update = {chunk.document_id for chunk in chunks}
+        for doc_id in doc_ids_to_update:
+            self.delete_document(doc_id)
+
         for chunk in chunks:
             self.chunks_map[chunk.chunk_id] = chunk
             self.vectors[chunk.chunk_id] = self._embed(chunk.content)
@@ -67,7 +82,7 @@ class DenseVectorStore:
             chunk = self.chunks_map.get(chunk_id)
             if user_role and chunk:
                 if not AccessControlManager.can_access(user_role, chunk.classification):
-                    continue  # Filter out unauthorized chunk
+                    continue
 
             sim = float(np.dot(query_vec, doc_vec))
             scores.append((chunk_id, sim))
@@ -103,7 +118,6 @@ class DenseVectorStore:
             json.dump(manifest, f)
         tmp_file.replace(target_file)
 
-        logger.info("Persisted %d vectors to %s (SHA256: %s)", len(self.vectors), target_file, checksum[:8])
         return target_file
 
     def load_from_disk(self, storage_dir: Path) -> bool:
@@ -119,7 +133,6 @@ class DenseVectorStore:
             payload = manifest.get("payload", {})
             recorded_checksum = manifest.get("checksum_sha256")
 
-            # Verify payload integrity
             raw_json = json.dumps(payload, indent=2)
             calculated_checksum = hashlib.sha256(raw_json.encode("utf-8")).hexdigest()
             if recorded_checksum and recorded_checksum != calculated_checksum:
@@ -129,8 +142,6 @@ class DenseVectorStore:
             self.dimension = payload.get("dimension", 128)
             self.chunks_map = {cid: TextChunk(**data) for cid, data in payload.get("chunks", {}).items()}
             self.vectors = {cid: np.array(vec, dtype=np.float32) for cid, vec in payload.get("vectors", {}).items()}
-
-            logger.info("Loaded %d vectors from disk snapshot %s", len(self.vectors), target_file.name)
             return True
         except Exception as e:
             logger.error("Failed to load vector store snapshot: %s", e)

@@ -3,26 +3,26 @@
     "platform": "Windows-11-10.0.26200-SP0",
     "python_version": "3.13.14",
     "cpu": "Intel64 Family 6 Model 165 Stepping 3, GenuineIntel",
-    "timestamp": "2026-09-14 11:04:34"
+    "timestamp": "2026-09-14 11:13:23"
   },
   "cold_queries": {
     "iterations": 100,
-    "p50_ms": 2.05,
-    "p95_ms": 2.58,
-    "p99_ms": 3.44,
-    "mean_ms": 2.13,
-    "min_ms": 1.87,
-    "max_ms": 4.2,
-    "std_ms": 0.3
+    "p50_ms": 2.15,
+    "p95_ms": 2.71,
+    "p99_ms": 3.76,
+    "mean_ms": 2.23,
+    "min_ms": 1.91,
+    "max_ms": 5.79,
+    "std_ms": 0.43
   },
   "cached_queries": {
     "iterations": 99,
-    "p50_ms": 1.91,
-    "p95_ms": 2.36,
-    "p99_ms": 2.61,
-    "mean_ms": 1.97,
-    "min_ms": 1.71,
+    "p50_ms": 1.98,
+    "p95_ms": 2.42,
+    "p99_ms": 2.51,
+    "mean_ms": 2.02,
+    "min_ms": 1.73,
     "max_ms": 2.68,
-    "std_ms": 0.21
+    "std_ms": 0.18
   }
 }
