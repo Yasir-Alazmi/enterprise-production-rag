@@ -73,7 +73,16 @@ class DeterministicGroundedGenerator:
                 provider="deterministic-grounded"
             )
 
-        query_tokens = set(BM25Index.tokenize(query))
+        STOP_WORDS = {
+            "a", "an", "the", "and", "or", "but", "if", "as", "what",
+            "which", "this", "that", "these", "those", "for", "is", "of",
+            "to", "from", "in", "out", "on", "by", "with", "are", "was",
+            "were", "be", "been", "have", "has", "had", "do", "does", "did"
+        }
+        query_tokens = {tok for tok in BM25Index.tokenize(query) if tok not in STOP_WORDS}
+        if not query_tokens:
+            query_tokens = set(BM25Index.tokenize(query))
+
         synthesized_points: List[str] = []
         cited_sections: List[str] = []
 
@@ -82,7 +91,7 @@ class DeterministicGroundedGenerator:
 
             relevant_sentences = []
             for sent in sentences:
-                sent_tokens = set(BM25Index.tokenize(sent))
+                sent_tokens = {tok for tok in BM25Index.tokenize(sent) if tok not in STOP_WORDS}
                 intersection = query_tokens.intersection(sent_tokens)
                 if len(intersection) >= 1:
                     relevant_sentences.append((sent, len(intersection)))
@@ -90,7 +99,10 @@ class DeterministicGroundedGenerator:
             relevant_sentences.sort(key=lambda x: x[1], reverse=True)
 
             if relevant_sentences:
-                best_sent = relevant_sentences[0][0]
+                best_sent, match_count = relevant_sentences[0]
+                if match_count < 1:
+                    continue
+
                 doc_title = chunk.metadata.get("document_title", chunk.document_id)
                 sec = chunk.metadata.get("section", "General")
                 source_tag = f"[{doc_title} - {sec}]"
@@ -98,7 +110,8 @@ class DeterministicGroundedGenerator:
                 if source_tag not in cited_sections:
                     cited_sections.append(source_tag)
 
-                if best_sent not in synthesized_points:
+                # Avoid duplicate factual statements across chunks
+                if not any(best_sent.lower() == p.split(" [")[0].lower() for p in synthesized_points):
                     synthesized_points.append(f"{best_sent} {source_tag}")
 
         if not synthesized_points:
@@ -203,7 +216,35 @@ class LLMAnswerGenerator:
                             provider=f"openai:{self.model}"
                         )
             except Exception as e:
-                logger.warning("Live LLM generation call failed (%s); falling back to deterministic synthesis.", e)
+                logger.warning("Live OpenAI generation call failed (%s); falling back to deterministic synthesis.", e)
+
+        elif self.provider == "ollama":
+            try:
+                payload = {
+                    "model": self.model if self.model != "gpt-4o-mini" else "llama3.2",
+                    "messages": [
+                        {"role": "system", "content": self.SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    "stream": False,
+                    "options": {"temperature": 0.0}
+                }
+                url = f"{self.base_url.rstrip('/')}/api/chat"
+                with httpx.Client(timeout=15.0) as client:
+                    resp = client.post(url, json=payload)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        llm_answer = data.get("message", {}).get("content", "").strip()
+                        if llm_answer:
+                            return GenerationResult(
+                                answer=llm_answer,
+                                grounded=True,
+                                relevance_score=retrieved_chunks[0][1],
+                                cited_sections=cited_sections,
+                                provider=f"ollama:{payload['model']}"
+                            )
+            except Exception as e:
+                logger.warning("Live Ollama generation call failed (%s); falling back to deterministic synthesis.", e)
 
         # Default fallback to deterministic grounding engine
         res = self.fallback.generate_answer(query, retrieved_chunks)

@@ -18,6 +18,9 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Restore persistent disk snapshot or load sample documents on boot."""
+    # Fail-fast security validation preventing startup with insecure defaults in production
+    settings.validate_production_security()
+
     logger.info("Initializing Enterprise RAG service [%s]...", settings.app_env)
 
     # Check if disk persistence exists
@@ -47,7 +50,10 @@ async def lifespan(app: FastAPI):
                     logger.error("Failed to load sample doc %s: %s", file_path.name, e)
 
             if docs_to_ingest:
-                ingest_documents(IngestRequest(documents=docs_to_ingest, persist_to_disk=True))
+                ingest_documents(
+                    IngestRequest(documents=docs_to_ingest, persist_to_disk=True),
+                    authorization="Bearer token-admin-restricted"
+                )
                 logger.info("Pre-indexed and persisted %d sample documents", len(docs_to_ingest))
 
     yield

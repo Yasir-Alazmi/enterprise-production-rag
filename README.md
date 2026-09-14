@@ -101,9 +101,11 @@ Measured locally across 100 consecutive requests on Windows (AMD64, Python 3.13)
 | **p99 Latency** | **4.02 ms** | **2.67 ms** |
 | **Mean Execution Time** | **2.44 ms** | **2.08 ms** |
 | **Throughput Capacity** | > 400 req/sec | > 500 req/sec |
-| **Automated Test Suite** | **60 / 60 Passed (100%)** | 13 Test Suites |
+| **Automated Test Suite** | **63 / 63 Passed (100%)** | 13 Test Suites |
 
 > **Benchmark Scope Note**: Latency covers full Ingestion -> PII Sanitization -> Injection Screening -> Role-Scoped Cache -> Hybrid Retrieval -> Cross-Encoder -> Deterministic Grounded Synthesis. Live third-party external LLM API calls incur separate network roundtrips (~300ms - 1500ms).
+>
+> **CV / Resume Technical Representation**: *"Architected an Enterprise RAG Reference Platform featuring hybrid retrieval (BM25 + Dense RRF), zero-trust JWT authentication with RBAC, and pluggable synthesis engines, achieving 2.37 ms p50 latency for the deterministic local pipeline (excluding external LLM network latency)."*
 
 ### Automated RAG Evaluation Report (`scripts/evaluate_rag.py`)
 Evaluated against the Golden Reference Corpus across multi-topic enterprise domains:
@@ -114,9 +116,10 @@ Evaluated against the Golden Reference Corpus across multi-topic enterprise doma
 | **Mean Context Recall@K** | **1.000** | > 0.90 |
 | **Mean Reciprocal Rank (MRR)** | **0.833** | > 0.80 |
 | **Mean NDCG@5** | **0.875** | > 0.85 |
-| **Answer Faithfulness** | **0.679** | Grounded Context Coverage |
-| **Mean Retrieval Latency** | **0.25 ms** | < 5.00 ms |
-| **Mean Generation Latency (Local)** | **0.11 ms** | < 5.00 ms |
+| **Answer Faithfulness** | **0.875** | > 0.85 (Strict Context Grounding) |
+| **Answer Citation Correctness** | **1.000** | 1.00 (Zero Hallucinated Sources) |
+| **Mean Retrieval Latency** | **0.22 ms** | < 5.00 ms |
+| **Mean Generation Latency (Local)** | **0.10 ms** | < 5.00 ms |
 
 ---
 

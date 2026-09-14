@@ -31,6 +31,7 @@ class QueryRequest(BaseModel):
 class Citation(BaseModel):
     chunk_id: str
     document_id: str
+    document_title: Optional[str] = None
     section: str
     classification: str
     content_snippet: str

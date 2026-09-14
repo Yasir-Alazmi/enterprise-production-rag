@@ -118,6 +118,7 @@ def run_evaluation() -> dict:
         ndcg_scores = []
         faithfulness_scores = []
         relevance_scores = []
+        citation_correctness_scores = []
         retrieval_latencies = []
         generation_latencies = []
 
@@ -139,6 +140,10 @@ def run_evaluation() -> dict:
 
             retrieved_doc_ids = [c["document_id"] for c in data.get("citations", [])]
             retrieved_snippets = [c["content_snippet"] for c in data.get("citations", [])]
+            retrieved_citations = [
+                f"[{c.get('document_title') or c.get('document_id')} - {c.get('section', 'General')}]"
+                for c in data.get("citations", [])
+            ]
             answer = data.get("answer", "")
 
             metrics = evaluator.evaluate_query(
@@ -146,7 +151,8 @@ def run_evaluation() -> dict:
                 ground_truth_ids=gt,
                 answer=answer,
                 context_chunks=retrieved_snippets,
-                query=q
+                query=q,
+                retrieved_citations=retrieved_citations
             )
 
             ret_ms = data.get("retrieval_latency_ms", 0.0)
@@ -158,6 +164,8 @@ def run_evaluation() -> dict:
             ndcg_scores.append(metrics["ndcg_at_5"])
             faithfulness_scores.append(metrics["faithfulness"])
             relevance_scores.append(metrics.get("answer_relevance", 0.0))
+            if "citation_correctness" in metrics:
+                citation_correctness_scores.append(metrics["citation_correctness"])
             retrieval_latencies.append(ret_ms)
             generation_latencies.append(gen_ms)
 
@@ -188,6 +196,7 @@ def run_evaluation() -> dict:
             "mean_ndcg_at_5": round(sum(ndcg_scores) / len(ndcg_scores), 4),
             "mean_faithfulness": round(sum(faithfulness_scores) / len(faithfulness_scores), 4),
             "mean_answer_relevance": round(sum(relevance_scores) / len(relevance_scores), 4),
+            "mean_citation_correctness": round(sum(citation_correctness_scores) / max(1, len(citation_correctness_scores)), 4) if citation_correctness_scores else 1.0,
         },
         "latency_breakdown_averages_ms": {
             "retrieval_mean_ms": round(sum(retrieval_latencies) / len(retrieval_latencies), 2),
@@ -203,7 +212,8 @@ def run_evaluation() -> dict:
     print(f"{'Mean Context Recall@K':<35} | {summary['aggregate_metrics']['mean_context_recall']:<20} | {'> 0.90':<15}")
     print(f"{'Mean Reciprocal Rank (MRR)':<35} | {summary['aggregate_metrics']['mean_mrr']:<20} | {'> 0.85':<15}")
     print(f"{'Mean NDCG@5':<35} | {summary['aggregate_metrics']['mean_ndcg_at_5']:<20} | {'> 0.85':<15}")
-    print(f"{'Answer Faithfulness':<35} | {summary['aggregate_metrics']['mean_faithfulness']:<20} | {'1.00 (Zero Halluc)':<15}")
+    print(f"{'Answer Faithfulness':<35} | {summary['aggregate_metrics']['mean_faithfulness']:<20} | {'> 0.90 (Grounded)':<15}")
+    print(f"{'Answer Citation Correctness':<35} | {summary['aggregate_metrics']['mean_citation_correctness']:<20} | {'1.00 (Zero Halluc)':<15}")
     print(f"{'Answer Keyword Relevance':<35} | {summary['aggregate_metrics']['mean_answer_relevance']:<20} | {'> 0.50':<15}")
     print("-" * 76)
     print(f"{'Mean Retrieval Latency':<35} | {summary['latency_breakdown_averages_ms']['retrieval_mean_ms']:<17} ms | {'< 5.00 ms':<15}")

@@ -2,7 +2,7 @@
   "metadata": {
     "platform": "Windows-11-10.0.26200-SP0",
     "python_version": "3.13.14",
-    "timestamp": "2026-09-14 11:29:01",
+    "timestamp": "2026-09-14 11:38:17",
     "queries_evaluated": 4
   },
   "aggregate_metrics": {
@@ -10,11 +10,12 @@
     "mean_context_recall": 1.0,
     "mean_mrr": 0.8333,
     "mean_ndcg_at_5": 0.875,
-    "mean_faithfulness": 0.6792,
-    "mean_answer_relevance": 0.598
+    "mean_faithfulness": 0.875,
+    "mean_answer_relevance": 0.573,
+    "mean_citation_correctness": 1.0
   },
   "latency_breakdown_averages_ms": {
-    "retrieval_mean_ms": 0.25,
+    "retrieval_mean_ms": 0.28,
     "generation_mean_ms": 0.11
   },
   "query_details": [
@@ -28,18 +29,19 @@
       "ground_truth_ids": [
         "sec_sla_001"
       ],
-      "answer": "Based on verified enterprise policies, Enterprise cloud infrastructure requires 99.95% monthly uptime. [Cloud Security SLA - General] Furthermore, Annual vacation entitlement is 30 calendar days per annum for full-time employees. [Corporate Leave Policy - General] Additionally, Annual vacation entitlement is 30 calendar days per annum for full-time employees. [Corporate Leave Policy - General]",
+      "answer": "Based on verified enterprise policies, Enterprise cloud infrastructure requires 99.95% monthly uptime. [Cloud Security SLA - General]",
       "metrics": {
         "context_precision": 1.0,
         "context_recall": 1.0,
         "mrr": 1.0,
         "ndcg_at_5": 1.0,
-        "faithfulness": 0.8,
-        "answer_relevance": 0.6
+        "faithfulness": 1.0,
+        "answer_relevance": 0.5,
+        "citation_correctness": 1.0
       },
       "latency_breakdown_ms": {
-        "total": 3.82,
-        "retrieval": 0.24,
+        "total": 4.05,
+        "retrieval": 0.37,
         "generation": 0.19
       }
     },
@@ -53,19 +55,20 @@
       "ground_truth_ids": [
         "hr_leave_002"
       ],
-      "answer": "Based on verified enterprise policies, Annual vacation entitlement is 30 calendar days per annum for full-time employees. [Corporate Leave Policy - General] Furthermore, Annual vacation entitlement is 30 calendar days per annum for full-time employees. [Corporate Leave Policy - General]",
+      "answer": "Based on verified enterprise policies, Annual vacation entitlement is 30 calendar days per annum for full-time employees. [Corporate Leave Policy - General]",
       "metrics": {
         "context_precision": 1.0,
         "context_recall": 1.0,
         "mrr": 1.0,
         "ndcg_at_5": 1.0,
-        "faithfulness": 0.6667,
-        "answer_relevance": 0.6
+        "faithfulness": 1.0,
+        "answer_relevance": 0.6,
+        "citation_correctness": 1.0
       },
       "latency_breakdown_ms": {
-        "total": 2.53,
+        "total": 3.05,
         "retrieval": 0.23,
-        "generation": 0.07
+        "generation": 0.08
       }
     },
     {
@@ -78,19 +81,20 @@
       "ground_truth_ids": [
         "crypto_audit_003"
       ],
-      "answer": "Based on verified enterprise policies, Dual-custody M-of-N key ceremonies require at least three authorized security officers in the Zurich vault. [CISO Root Key Ceremony - General] Furthermore, Secret root HSM key ceremony performed in Zurich vault. [CISO Cryptographic Audit - General] Additionally, All prospective candidates must submit their application through the portal. [Public Career FAQ - General]",
+      "answer": "Based on verified enterprise policies, Dual-custody M-of-N key ceremonies require at least three authorized security officers in the Zurich vault. [CISO Root Key Ceremony - General] Furthermore, Secret root HSM key ceremony performed in Zurich vault. [CISO Cryptographic Audit - General]",
       "metrics": {
         "context_precision": 1.0,
         "context_recall": 1.0,
         "mrr": 1.0,
         "ndcg_at_5": 1.0,
-        "faithfulness": 0.75,
-        "answer_relevance": 0.6364
+        "faithfulness": 1.0,
+        "answer_relevance": 0.6364,
+        "citation_correctness": 1.0
       },
       "latency_breakdown_ms": {
-        "total": 3.07,
-        "retrieval": 0.27,
-        "generation": 0.06
+        "total": 2.44,
+        "retrieval": 0.3,
+        "generation": 0.07
       }
     },
     {
@@ -103,19 +107,20 @@
       "ground_truth_ids": [
         "sec_sla_001"
       ],
-      "answer": "Based on verified enterprise policies, Annual vacation entitlement is 30 calendar days per annum for full-time employees. [Corporate Leave Policy - General] Furthermore, Annual vacation entitlement is 30 calendar days per annum for full-time employees. [Corporate Leave Policy - General] Additionally, Incident response for P1 critical events must occur within 15 minutes. [Cloud Security SLA - General]",
+      "answer": "Based on verified enterprise policies, Annual vacation entitlement is 30 calendar days per annum for full-time employees. [Corporate Leave Policy - General] Furthermore, Incident response for P1 critical events must occur within 15 minutes. [Cloud Security SLA - General]",
       "metrics": {
         "context_precision": 0.3333,
         "context_recall": 1.0,
         "mrr": 0.3333,
         "ndcg_at_5": 0.5,
         "faithfulness": 0.5,
-        "answer_relevance": 0.5556
+        "answer_relevance": 0.5556,
+        "citation_correctness": 1.0
       },
       "latency_breakdown_ms": {
-        "total": 2.49,
-        "retrieval": 0.27,
-        "generation": 0.1
+        "total": 2.45,
+        "retrieval": 0.2,
+        "generation": 0.09
       }
     }
   ]

@@ -43,3 +43,22 @@ def test_generator_factory():
 
     # Verify backward compatibility alias
     assert EnterpriseSynthesisGenerator is DeterministicGroundedGenerator
+
+
+def test_ollama_generator_fallback_on_unreachable_endpoint():
+    # Calling Ollama with unreachable port falls back cleanly to deterministic synthesis
+    ollama_gen = LLMAnswerGenerator(provider="ollama", base_url="http://127.0.0.1:59999")
+    chunk = TextChunk(
+        chunk_id="c_ollama",
+        document_id="doc_ollama",
+        content="Incident response SLA for P1 outages requires 15 minutes.",
+        chunk_index=0,
+        token_count=10,
+        classification="INTERNAL",
+        metadata={"document_title": "Incident Protocol", "section": "SLAs"}
+    )
+    res = ollama_gen.generate_answer("What is the P1 incident response SLA?", [(chunk, 0.90)])
+    assert res.grounded is True
+    assert "15 minutes" in res.answer
+    assert "[Incident Protocol - SLAs]" in res.answer
+

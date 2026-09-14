@@ -266,6 +266,7 @@ def query_pipeline(
         citations.append(Citation(
             chunk_id=chunk.chunk_id,
             document_id=chunk.document_id,
+            document_title=chunk.metadata.get("document_title", chunk.document_id),
             section=chunk.metadata.get("section", "General"),
             classification=chunk.classification,
             content_snippet=snippet,

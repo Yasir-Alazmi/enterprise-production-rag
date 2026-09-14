@@ -76,4 +76,13 @@ class Settings(BaseSettings):
             return cls(**flat)
         return cls()
 
+    def validate_production_security(self) -> None:
+        """Enforce strict fail-fast validation in production environments."""
+        if self.app_env.lower() in ["production", "prod"]:
+            if "default-insecure-secret" in self.jwt_secret_key:
+                raise ValueError(
+                    "FATAL SECURITY VIOLATION: Cannot start application in production with default insecure "
+                    "jwt_secret_key. Configure a cryptographically secure key via the JWT_SECRET_KEY environment variable."
+                )
+
 settings = Settings()

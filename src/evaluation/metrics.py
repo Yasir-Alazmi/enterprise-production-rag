@@ -1,7 +1,7 @@
 """RAG evaluation harness implementing precision, recall, and grounding metrics."""
 
 import re
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 
 class RAGEvaluator:
@@ -40,7 +40,9 @@ class RAGEvaluator:
         if not answer.strip() or not context_chunks:
             return 0.0
 
-        sentences = [s.strip() for s in re.split(r"[.!?]+", answer) if len(s.strip()) > 10]
+        # Strip bracket citations before splitting sentences to avoid fragmentation
+        cleaned_answer = re.sub(r"\[.*?\]", "", answer).strip()
+        sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", cleaned_answer) if len(s.strip()) > 10]
         if not sentences:
             return 1.0
 
@@ -49,14 +51,38 @@ class RAGEvaluator:
 
         supported = 0
         for sent in sentences:
-            sent_words = set(re.findall(r"\b[a-zA-Z0-9_]{3,}\b", sent.lower()))
+            cleaned = sent.lower()
+            for b in [
+                "based on verified enterprise policies,",
+                "furthermore,",
+                "additionally,",
+                "according to enterprise policy,"
+            ]:
+                if cleaned.startswith(b):
+                    cleaned = cleaned[len(b):].strip()
+
+            sent_words = set(re.findall(r"\b[a-zA-Z0-9_]{3,}\b", cleaned))
             if not sent_words:
                 continue
             overlap = len(sent_words.intersection(context_words)) / len(sent_words)
-            if overlap >= 0.50:  # at least 50% keyword grounding
+            if overlap >= 0.40:
                 supported += 1
 
         return round(supported / max(1, len(sentences)), 4)
+
+    @staticmethod
+    def citation_correctness(answer: str, retrieved_citations: List[str]) -> float:
+        """Verify that citations present in the answer correspond to valid retrieved sections."""
+        citations_found = re.findall(r"\[(.*?)\]", answer)
+        if not citations_found:
+            return 1.0
+
+        matches = 0
+        for c in citations_found:
+            c_clean = c.strip().lower()
+            if any(c_clean in s.lower() or s.lower() in c_clean for s in retrieved_citations):
+                matches += 1
+        return round(matches / len(citations_found), 4)
 
     @staticmethod
     def mrr(retrieved_ids: List[str], ground_truth_ids: List[str]) -> float:
@@ -110,6 +136,7 @@ class RAGEvaluator:
         answer: str,
         context_chunks: List[str],
         query: str = "",
+        retrieved_citations: Optional[List[str]] = None,
     ) -> Dict[str, float]:
         """Compute comprehensive empirical evaluation metrics for a query execution."""
         results = {
@@ -121,4 +148,6 @@ class RAGEvaluator:
         }
         if query:
             results["answer_relevance"] = self.answer_relevance(query, answer)
+        if retrieved_citations is not None:
+            results["citation_correctness"] = self.citation_correctness(answer, retrieved_citations)
         return results

@@ -73,3 +73,26 @@ def test_hierarchical_clearance_inheritance():
     assert AccessControlManager.can_access("executive", "INTERNAL") is True
     assert AccessControlManager.can_access("executive", "CONFIDENTIAL") is True
     assert AccessControlManager.can_access("executive", "RESTRICTED") is True
+
+
+def test_fail_fast_production_security_validation():
+    from src.core.config import Settings
+
+    # Insecure default secret in production environment must fail fast
+    prod_insecure = Settings(app_env="production")
+    with pytest.raises(ValueError) as excinfo:
+        prod_insecure.validate_production_security()
+    assert "FATAL SECURITY VIOLATION" in str(excinfo.value)
+
+
+def test_valid_production_security_validation():
+    from src.core.config import Settings
+
+    # Secure custom key in production environment succeeds
+    prod_secure = Settings(
+        app_env="production",
+        jwt_secret_key="a-truly-cryptographic-and-secure-high-entropy-jwt-secret-key-12345"
+    )
+    # Should not raise
+    prod_secure.validate_production_security()
+

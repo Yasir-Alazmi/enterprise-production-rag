@@ -81,7 +81,13 @@ class SentenceTransformerEmbedding:
         try:
             from sentence_transformers import SentenceTransformer
             self._model = SentenceTransformer(self._model_name)
-            logger.info("Loaded neural embedding model: %s", self._model_name)
+            # Dynamically infer true model dimension from loaded architecture
+            model_dim = getattr(self._model, "get_sentence_embedding_dimension", None)
+            if callable(model_dim):
+                detected_dim = model_dim()
+                if detected_dim and isinstance(detected_dim, int):
+                    self._dimension = detected_dim
+            logger.info("Loaded neural embedding model: %s (dimension: %d)", self._model_name, self._dimension)
         except ImportError:
             logger.warning(
                 "sentence-transformers not installed; activating DenseSemanticProjection fallback."
