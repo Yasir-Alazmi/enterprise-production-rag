@@ -25,3 +25,29 @@ def test_sliding_window_rate_limiter():
         for _ in range(10):
             r = client.get("/api/v1/health")
             assert r.status_code == 200
+
+
+def test_cors_middleware_allowed_origin():
+    with TestClient(app) as client:
+        res = client.options(
+            "/api/v1/health",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "GET",
+            }
+        )
+        assert res.status_code == 200
+        assert res.headers.get("access-control-allow-origin") == "http://localhost:3000"
+        assert res.headers.get("access-control-allow-credentials") == "true"
+
+
+def test_cors_middleware_disallowed_origin():
+    with TestClient(app) as client:
+        res = client.options(
+            "/api/v1/health",
+            headers={
+                "Origin": "http://malicious-site.com",
+                "Access-Control-Request-Method": "GET",
+            }
+        )
+        assert res.headers.get("access-control-allow-origin") != "http://malicious-site.com"

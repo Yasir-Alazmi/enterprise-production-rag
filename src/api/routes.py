@@ -299,8 +299,24 @@ def query_pipeline(
 
 
 @router.post("/eval", response_model=EvalResponse)
-def evaluate_metrics(req: EvalRequest) -> EvalResponse:
-    """Evaluate retrieval and generation quality against ground truth."""
+def evaluate_metrics(
+    req: EvalRequest,
+    authorization: Optional[str] = Header(default=None)
+) -> EvalResponse:
+    """Evaluate retrieval and generation quality against ground truth.
+
+    Zero-Trust Security: Requires valid Bearer token with at least CONFIDENTIAL clearance.
+    """
+    _, clearance = AccessControlManager.resolve_bearer_identity(
+        auth_header=authorization,
+        require_auth=True
+    )
+    AccessControlManager.enforce_clearance(
+        user_clearance=clearance,
+        min_clearance=ClassificationLevel.CONFIDENTIAL,
+        operation_name="evaluation pipeline execution"
+    )
+
     results = evaluator.evaluate_query(
         retrieved_ids=req.retrieved_ids,
         ground_truth_ids=req.ground_truth_ids,

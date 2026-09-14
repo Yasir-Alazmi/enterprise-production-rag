@@ -131,7 +131,7 @@ def test_eval_endpoint(test_client: TestClient):
         "context_chunks": ["Annual vacation entitlement is 30 calendar days per annum for employees."],
         "query": "What is annual vacation?"
     }
-    res = test_client.post("/api/v1/eval", json=eval_payload)
+    res = test_client.post("/api/v1/eval", json=eval_payload, headers=ADMIN_HEADERS)
     assert res.status_code == 200
     data = res.json()
     assert data["context_precision"] > 0.0
@@ -139,6 +139,32 @@ def test_eval_endpoint(test_client: TestClient):
     assert data["mrr"] == 1.0
     assert data["ndcg_at_5"] > 0.0
     assert data["faithfulness"] == 1.0
+
+
+def test_eval_without_auth_fails_401(test_client: TestClient):
+    eval_payload = {
+        "retrieved_ids": ["c1"],
+        "ground_truth_ids": ["c1"],
+        "answer": "Answer",
+        "context_chunks": ["Context"],
+        "query": "Query"
+    }
+    res = test_client.post("/api/v1/eval", json=eval_payload)
+    assert res.status_code == 401
+    assert "Authentication required" in res.json()["detail"]
+
+
+def test_eval_with_insufficient_clearance_fails_403(test_client: TestClient):
+    eval_payload = {
+        "retrieved_ids": ["c1"],
+        "ground_truth_ids": ["c1"],
+        "answer": "Answer",
+        "context_chunks": ["Context"],
+        "query": "Query"
+    }
+    res = test_client.post("/api/v1/eval", json=eval_payload, headers=EMPLOYEE_HEADERS)
+    assert res.status_code == 403
+    assert "Access forbidden" in res.json()["detail"]
 
 
 def test_api_rbac_confidential_document_isolation(test_client: TestClient):

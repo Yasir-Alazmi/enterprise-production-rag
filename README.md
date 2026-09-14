@@ -21,8 +21,8 @@ An enterprise reference architecture and engineering blueprint for high-security
         (HMAC-SHA256 JWT / API Tokens: PUBLIC < INTERNAL < CONFIDENTIAL < RESTRICTED)
                                │
                                ▼
-        [ Protected FastAPI Gateway (/api/v1/query, /ingest, /documents/{id}) ]
-                               │
+        [ Protected FastAPI Gateway (/api/v1/query, /ingest, /documents/{id}, /eval) ]
+                                │
         ┌───────────────────────┴───────────────────────┐
         ▼                                               ▼
  [ Injection Detector ]                         [ PII Sanitizer ]
@@ -60,10 +60,11 @@ An enterprise reference architecture and engineering blueprint for high-security
 
 ## Core Engineering Capabilities
 
-### 1. Zero-Trust Identity & Cryptographic Access Control (`src/core/security.py`)
+### 1. Zero-Trust Identity, RBAC & API Hardening (`src/core/security.py`, `src/api/main.py`)
 - **HMAC-SHA256 JWT Decoding**: Validates cryptographic signatures, token expiration (`exp`), and tenant clearance claims (`sub`, `role`, `clearance`).
-- **Protected Administrative Endpoints**: `POST /api/v1/ingest` and `DELETE /api/v1/documents/{id}` strictly require Bearer authorization with $\ge$ `CONFIDENTIAL` clearance. Unauthenticated calls return `HTTP 401 Unauthorized`; insufficient clearance calls return `HTTP 403 Forbidden`.
+- **Protected Administrative & Evaluation Endpoints**: `POST /api/v1/ingest`, `DELETE /api/v1/documents/{id}`, and `POST /api/v1/eval` strictly require Bearer authorization with $\ge$ `CONFIDENTIAL` clearance. Unauthenticated calls return `HTTP 401 Unauthorized`; insufficient clearance calls return `HTTP 403 Forbidden`.
 - **Strict Header Enforcement**: Unrecognized or malformed tokens explicitly return `401 Unauthorized` rather than silently degrading permissions.
+- **Restricted CORS Policy**: Configurable, environment-governed allowed origins with strict method (`GET`, `POST`, `DELETE`, `OPTIONS`) and header filtering, completely eliminating wildcard origin exposure on credentialed endpoints.
 
 ### 2. Dual-Mode Embedding Engine Interface (`src/retrieval/embeddings.py`)
 - **Interface Contract (`BaseEmbeddingEngine`)**: Decouples the vector store and cache from underlying embedding algorithms.
@@ -101,7 +102,7 @@ Measured locally across 100 consecutive requests on Windows (AMD64, Python 3.13)
 | **p99 Latency** | **4.02 ms** | **2.67 ms** |
 | **Mean Execution Time** | **2.44 ms** | **2.08 ms** |
 | **Throughput Capacity** | > 400 req/sec | > 500 req/sec |
-| **Automated Test Suite** | **63 / 63 Passed (100%)** | 13 Test Suites |
+| **Automated Test Suite** | **67 / 67 Passed (100%)** | 13 Test Suites |
 
 > **Benchmark Scope Note**: Latency covers full Ingestion -> PII Sanitization -> Injection Screening -> Role-Scoped Cache -> Hybrid Retrieval -> Cross-Encoder -> Deterministic Grounded Synthesis. Live third-party external LLM API calls incur separate network roundtrips (~300ms - 1500ms).
 >
@@ -168,7 +169,7 @@ enterprise-production-rag/
 │   ├── ingestion/                # Document parsing and recursive token chunker
 │   ├── reranker/                 # Cross-encoder joint interaction scorer
 │   └── retrieval/                # Dual-mode embeddings, BM25, and hybrid RRF retriever
-├── tests/                        # 60 automated tests across 13 test suites (100% passing)
+├── tests/                        # 67 automated tests across 13 test suites (100% passing)
 ├── Dockerfile                    # Multi-stage production container
 ├── docker-compose.yml            # Production service orchestration
 ├── pyproject.toml                # Build system & pytest configuration
@@ -184,11 +185,11 @@ enterprise-production-rag/
 git clone https://github.com/Yasir-Alazmi/enterprise-production-rag.git
 cd enterprise-production-rag
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scriptsctivate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Run Test Suite (60 Tests)
+### 2. Run Test Suite (67 Tests)
 ```bash
 python -m pytest tests/ -v
 ```
@@ -222,6 +223,12 @@ curl -X POST http://localhost:8000/api/v1/query \
 # Delete a Document (Requires Admin/Manager Bearer Token)
 curl -X DELETE http://localhost:8000/api/v1/documents/enterprise_cloud_security_sla \
   -H "Authorization: Bearer token-admin-restricted"
+
+# Run Evaluation Benchmark (Requires Admin/Manager Bearer Token)
+curl -X POST http://localhost:8000/api/v1/eval \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer token-admin-restricted" \
+  -d '{"retrieved_ids": ["c1"], "ground_truth_ids": ["c1"], "answer": "Annual leave is 30 days.", "context_chunks": ["Annual vacation entitlement is 30 days."]}'
 ```
 
 ---

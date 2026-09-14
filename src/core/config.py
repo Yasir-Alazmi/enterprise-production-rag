@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     jwt_secret_key: str = Field(default="enterprise-rag-default-insecure-secret-key-change-in-prod")
     jwt_algorithm: str = Field(default="HS256")
     api_tokens_json: Optional[str] = Field(default=None)
+    cors_allowed_origins: list[str] = Field(
+        default=[
+            "http://localhost:3000",
+            "http://localhost:8000",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:8000",
+        ]
+    )
 
     # Embedding Provider Configuration
     embedding_provider: str = Field(default="deterministic")
@@ -57,6 +65,8 @@ class Settings(BaseSettings):
                 flat["app_name"] = raw["app"].get("name", "enterprise-production-rag")
                 flat["app_env"] = raw["app"].get("environment", "development")
                 flat["log_level"] = raw["app"].get("log_level", "INFO")
+                if "cors_allowed_origins" in raw["app"]:
+                    flat["cors_allowed_origins"] = raw["app"]["cors_allowed_origins"]
             if "ingestion" in raw:
                 flat["chunk_size"] = raw["ingestion"].get("chunk_size", 512)
                 flat["chunk_overlap"] = raw["ingestion"].get("chunk_overlap", 64)
