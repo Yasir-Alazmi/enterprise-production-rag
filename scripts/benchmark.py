@@ -37,11 +37,16 @@ def run_benchmark(num_iterations: int = 100) -> dict:
 
         # 1. Benchmark Cold Hybrid Queries
         cold_latencies = []
+        auth_headers = {"Authorization": "Bearer token-employee-internal"}
         for i in range(num_iterations):
             # Unique variation to ensure cache misses
             q = f"What is the encryption standard for data at rest under policy variation {i}?"
             start = time.perf_counter()
-            res = client.post("/api/v1/query", json={"query": q, "top_k": 3, "enable_cache": False})
+            res = client.post(
+                "/api/v1/query",
+                json={"query": q, "top_k": 3, "enable_cache": False},
+                headers=auth_headers
+            )
             dur = (time.perf_counter() - start) * 1000.0
             if res.status_code == 200:
                 cold_latencies.append(dur)
@@ -61,11 +66,19 @@ def run_benchmark(num_iterations: int = 100) -> dict:
         # 2. Benchmark Semantic Cache Hit Queries
         cached_latencies = []
         # Pre-seed query
-        client.post("/api/v1/query", json={"query": "What is the monthly SLA uptime?", "enable_cache": True})
+        client.post(
+            "/api/v1/query",
+            json={"query": "What is the monthly SLA uptime?", "enable_cache": True},
+            headers=auth_headers
+        )
 
         for _ in range(num_iterations):
             start = time.perf_counter()
-            res = client.post("/api/v1/query", json={"query": "What is the monthly SLA uptime?", "enable_cache": True})
+            res = client.post(
+                "/api/v1/query",
+                json={"query": "What is the monthly SLA uptime?", "enable_cache": True},
+                headers=auth_headers
+            )
             dur = (time.perf_counter() - start) * 1000.0
             if res.status_code == 200 and res.json().get("cached"):
                 cached_latencies.append(dur)

@@ -31,12 +31,38 @@ def test_ingest_and_query_flow(test_client: TestClient):
         "query": "What is the annual vacation entitlement for employees?",
         "top_k": 2
     }
-    query_res = test_client.post("/api/v1/query", json=query_payload)
+    query_res = test_client.post(
+        "/api/v1/query",
+        json=query_payload,
+        headers={"Authorization": "Bearer token-employee-internal"}
+    )
     assert query_res.status_code == 200
     res_data = query_res.json()
     assert "vacation" in res_data["answer"].lower() or "30 calendar days" in res_data["answer"].lower()
     assert len(res_data["citations"]) > 0
     assert res_data["latency_ms"] > 0
+
+def test_public_document_query_without_bearer_token(test_client: TestClient):
+    # Ingest a PUBLIC FAQ document
+    public_doc = {
+        "documents": [
+            {
+                "id": "public_faq_01",
+                "title": "Public Career FAQ",
+                "content": "All prospective candidates must submit their application through the portal.",
+                "classification": "PUBLIC"
+            }
+        ]
+    }
+    test_client.post("/api/v1/ingest", json=public_doc)
+
+    # Anonymous guest query (no Authorization header) should succeed for PUBLIC resources
+    guest_res = test_client.post(
+        "/api/v1/query",
+        json={"query": "Where do prospective candidates submit applications?", "enable_cache": False}
+    )
+    assert guest_res.status_code == 200
+    assert any(c["document_id"] == "public_faq_01" for c in guest_res.json()["citations"])
 
 def test_query_blocks_prompt_injection(test_client: TestClient):
     payload = {
@@ -86,24 +112,35 @@ def test_api_rbac_confidential_document_isolation(test_client: TestClient):
     }
     test_client.post("/api/v1/ingest", json=memo_payload)
 
-    # 1. Employee query (should be denied access to restricted document)
-    emp_res = test_client.post("/api/v1/query", json={
-        "query": "What is the Project Falcon acquisition valuation?",
-        "user_role": "employee",
-        "enable_cache": False
-    })
+    # 1. Employee query via Bearer token (denied access to restricted document)
+    emp_res = test_client.post(
+        "/api/v1/query",
+        json={"query": "What is the Project Falcon acquisition valuation?", "enable_cache": False},
+        headers={"Authorization": "Bearer token-employee-internal"}
+    )
     assert emp_res.status_code == 200
     # Employee must NOT receive citations from the restricted document
     assert not any(c["document_id"] == "board_minutes_secret" for c in emp_res.json()["citations"])
 
-    # 2. Admin query (should retrieve the restricted document)
-    admin_res = test_client.post("/api/v1/query", json={
-        "query": "What is the Project Falcon acquisition valuation?",
-        "user_role": "admin",
-        "enable_cache": False
-    })
+    # 2. Admin query via Bearer token (should retrieve the restricted document)
+    admin_res = test_client.post(
+        "/api/v1/query",
+        json={"query": "What is the Project Falcon acquisition valuation?", "enable_cache": False},
+        headers={"Authorization": "Bearer token-admin-restricted"}
+    )
     assert admin_res.status_code == 200
     assert any(c["document_id"] == "board_minutes_secret" for c in admin_res.json()["citations"])
+
+def test_json_role_spoofing_without_token_is_strictly_denied(test_client: TestClient):
+    # Attacker attempts to spoof admin clearance via JSON body without Bearer token
+    spoofed_res = test_client.post(
+        "/api/v1/query",
+        json={"query": "What is the Project Falcon acquisition valuation?", "user_role": "admin", "enable_cache": False}
+    )
+    assert spoofed_res.status_code == 200
+    # Zero-trust policy: unauthenticated request is strictly PUBLIC.
+    # Zero restricted or confidential citations can be leaked!
+    assert not any(c["document_id"] == "board_minutes_secret" for c in spoofed_res.json()["citations"])
 
 def test_api_metrics_counter_increments(test_client: TestClient):
     # Query to increment telemetry

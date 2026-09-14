@@ -56,19 +56,18 @@ class AccessControlManager:
     @classmethod
     def resolve_bearer_identity(
         cls,
-        auth_header: Optional[str] = None,
-        fallback_role: Optional[str] = None
+        auth_header: Optional[str] = None
     ) -> Tuple[str, ClassificationLevel]:
-        """Cryptographically/reliably resolve user identity and clearance from HTTP Authorization header.
-        Prevents JSON role spoofing by unauthenticated clients.
+        """Cryptographically resolve user identity and clearance strictly from HTTP Authorization header.
+        Zero-trust policy: completely eliminates JSON role spoofing. Any unauthenticated caller
+        is strictly assigned PUBLIC clearance, and any payload role claims are disregarded.
         """
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ", 1)[1].strip()
-            if token in TOKEN_CLEARANCE_REGISTRY:
-                return TOKEN_CLEARANCE_REGISTRY[token]
-            # Untrusted / unrecognized token defaults to anonymous/PUBLIC
-            return ("anonymous", ClassificationLevel.PUBLIC)
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return ("guest", ClassificationLevel.PUBLIC)
 
-        # In absence of header, use fallback role or default to INTERNAL
-        role = fallback_role or "employee"
-        return (role, cls.get_user_clearance(role))
+        token = auth_header.split(" ", 1)[1].strip()
+        if token in TOKEN_CLEARANCE_REGISTRY:
+            return TOKEN_CLEARANCE_REGISTRY[token]
+
+        # Untrusted or unrecognized token
+        return ("anonymous", ClassificationLevel.PUBLIC)

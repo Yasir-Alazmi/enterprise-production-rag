@@ -133,10 +133,9 @@ def query_pipeline(
     """Execute end-to-end Generative RAG with Bearer Auth, RBAC, and role-scoped caching."""
     start_time = time.perf_counter()
 
-    # 1. Bearer Token Identity Resolution
+    # 1. Bearer Token Identity Resolution (Zero-trust: header is sole source of truth)
     resolved_role, clearance = AccessControlManager.resolve_bearer_identity(
-        auth_header=authorization,
-        fallback_role=request.user_role
+        auth_header=authorization
     )
 
     # 2. Adversarial Injection Screening
