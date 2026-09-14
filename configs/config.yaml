@@ -1,0 +1,28 @@
+app:
+  name: "enterprise-production-rag"
+  environment: "production"
+  log_level: "INFO"
+
+ingestion:
+  chunk_size: 512
+  chunk_overlap: 64
+  preserve_headers: true
+
+retrieval:
+  hybrid_alpha: 0.60
+  sparse_k1: 1.5
+  sparse_b: 0.75
+  dense_top_k: 10
+  sparse_top_k: 10
+  final_top_k: 5
+  rerank_top_k: 3
+
+guardrails:
+  enable_pii_sanitization: true
+  enable_injection_detection: true
+  block_unsafe_prompts: true
+
+cache:
+  enabled: true
+  similarity_threshold: 0.92
+  ttl_seconds: 3600

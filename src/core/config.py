@@ -1,0 +1,64 @@
+"""Application configuration using Pydantic Settings."""
+
+from pathlib import Path
+from typing import Any, Dict
+import yaml
+from pydantic_settings import BaseSettings
+from pydantic import Field
+
+class Settings(BaseSettings):
+    app_name: str = Field(default="enterprise-production-rag")
+    app_env: str = Field(default="development")
+    log_level: str = Field(default="INFO")
+
+    # Ingestion
+    chunk_size: int = Field(default=512)
+    chunk_overlap: int = Field(default=64)
+
+    # Retrieval
+    hybrid_alpha: float = Field(default=0.60)
+    sparse_k1: float = Field(default=1.5)
+    sparse_b: float = Field(default=0.75)
+    top_k: int = Field(default=5)
+    rerank_top_k: int = Field(default=3)
+
+    # Semantic Cache
+    cache_similarity_threshold: float = Field(default=0.92)
+    cache_ttl_seconds: int = Field(default=3600)
+
+    # Security
+    enable_pii_masking: bool = Field(default=True)
+    enable_injection_detection: bool = Field(default=True)
+
+    @classmethod
+    def from_yaml(cls, path: Path) -> "Settings":
+        """Load configuration from a YAML file with environment fallback."""
+        if path.exists():
+            with open(path, "r", encoding="utf-8") as f:
+                raw = yaml.safe_load(f) or {}
+            
+            flat: Dict[str, Any] = {}
+            if "app" in raw:
+                flat["app_name"] = raw["app"].get("name", "enterprise-production-rag")
+                flat["app_env"] = raw["app"].get("environment", "development")
+                flat["log_level"] = raw["app"].get("log_level", "INFO")
+            if "ingestion" in raw:
+                flat["chunk_size"] = raw["ingestion"].get("chunk_size", 512)
+                flat["chunk_overlap"] = raw["ingestion"].get("chunk_overlap", 64)
+            if "retrieval" in raw:
+                flat["hybrid_alpha"] = raw["retrieval"].get("hybrid_alpha", 0.60)
+                flat["sparse_k1"] = raw["retrieval"].get("sparse_k1", 1.5)
+                flat["sparse_b"] = raw["retrieval"].get("sparse_b", 0.75)
+                flat["top_k"] = raw["retrieval"].get("final_top_k", 5)
+                flat["rerank_top_k"] = raw["retrieval"].get("rerank_top_k", 3)
+            if "guardrails" in raw:
+                flat["enable_pii_masking"] = raw["guardrails"].get("enable_pii_sanitization", True)
+                flat["enable_injection_detection"] = raw["guardrails"].get("enable_injection_detection", True)
+            if "cache" in raw:
+                flat["cache_similarity_threshold"] = raw["cache"].get("similarity_threshold", 0.92)
+                flat["cache_ttl_seconds"] = raw["cache"].get("ttl_seconds", 3600)
+
+            return cls(**flat)
+        return cls()
+
+settings = Settings()

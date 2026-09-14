@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  rag-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: enterprise-rag-engine
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - LOG_LEVEL=INFO
+      - HYBRID_ALPHA=0.60
+      - CHUNK_SIZE=512
+      - CHUNK_OVERLAP=64
+      - CACHE_SIMILARITY_THRESHOLD=0.92
+      - CACHE_TTL_SECONDS=3600
+    volumes:
+      - ./data/sample_documents:/app/data/sample_documents:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
