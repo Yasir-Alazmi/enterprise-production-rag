@@ -32,3 +32,16 @@ def test_injection_detector_flags_malicious_inputs():
     # Benign inputs
     assert detector.validate_prompt("What is the disaster recovery RTO standard?")[0] is True
     assert detector.validate_prompt("How does encryption at rest work in our cloud?")[0] is True
+
+def test_pii_sanitizer_saudi_phone_and_api_key():
+    sanitizer = PIISanitizer()
+    text = "Call tech support at +966512345678 or 0501234567 and use token sk-1234567890abcdef12345678"
+    sanitized, modified, categories = sanitizer.sanitize(text)
+    assert modified is True
+    assert "PHONE" in categories
+    assert "API_TOKEN" in categories
+    assert "+966512345678" not in sanitized
+    assert "0501234567" not in sanitized
+    assert "sk-1234567890abcdef12345678" not in sanitized
+    assert "[REDACTED_PHONE]" in sanitized
+    assert "[REDACTED_API_TOKEN]" in sanitized

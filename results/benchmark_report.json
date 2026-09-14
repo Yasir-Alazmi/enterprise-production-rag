@@ -1,0 +1,28 @@
+{
+  "metadata": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python_version": "3.13.14",
+    "cpu": "Intel64 Family 6 Model 165 Stepping 3, GenuineIntel",
+    "timestamp": "2026-09-14 11:04:34"
+  },
+  "cold_queries": {
+    "iterations": 100,
+    "p50_ms": 2.05,
+    "p95_ms": 2.58,
+    "p99_ms": 3.44,
+    "mean_ms": 2.13,
+    "min_ms": 1.87,
+    "max_ms": 4.2,
+    "std_ms": 0.3
+  },
+  "cached_queries": {
+    "iterations": 99,
+    "p50_ms": 1.91,
+    "p95_ms": 2.36,
+    "p99_ms": 2.61,
+    "mean_ms": 1.97,
+    "min_ms": 1.71,
+    "max_ms": 2.68,
+    "std_ms": 0.21
+  }
+}

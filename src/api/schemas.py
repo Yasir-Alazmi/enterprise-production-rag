@@ -1,4 +1,4 @@
-"""Pydantic v2 schemas for API contracts."""
+"""Pydantic v2 schemas for API contracts including RBAC and metrics."""
 
 from typing import Any, Dict, List, Optional
 
@@ -9,25 +9,30 @@ class DocumentPayload(BaseModel):
     id: str = Field(..., description="Unique document identifier")
     title: str = Field(..., description="Document title")
     content: str = Field(..., description="Full document text content")
+    classification: Optional[str] = Field(default="INTERNAL", description="PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom metadata tags")
 
 class IngestRequest(BaseModel):
     documents: List[DocumentPayload] = Field(..., description="List of documents to ingest")
+    persist_to_disk: Optional[bool] = Field(default=True, description="Whether to serialize index to storage")
 
 class IngestResponse(BaseModel):
     indexed_documents: int
     indexed_chunks: int
+    persisted: bool
     status: str = "success"
 
 class QueryRequest(BaseModel):
     query: str = Field(..., min_length=2, description="User search query or question")
     top_k: Optional[int] = Field(default=3, ge=1, le=10, description="Number of top reranked results to return")
+    user_role: Optional[str] = Field(default="employee", description="Role for RBAC filtering (guest, employee, manager, admin)")
     enable_cache: Optional[bool] = Field(default=True, description="Whether to check semantic cache")
 
 class Citation(BaseModel):
     chunk_id: str
     document_id: str
     section: str
+    classification: str
     content_snippet: str
     relevance_score: float
 
@@ -53,7 +58,7 @@ class EvalResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str = "healthy"
-    version: str = "0.1.0"
+    version: str = "0.2.0"
     indexed_chunks: int
     cache_entries: int
     cache_stats: Dict[str, Any]

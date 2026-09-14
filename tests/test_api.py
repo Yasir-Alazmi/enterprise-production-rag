@@ -70,3 +70,44 @@ def test_eval_endpoint(test_client: TestClient):
     assert data["context_precision"] > 0.0
     assert data["context_recall"] == 0.5
     assert data["faithfulness"] == 1.0
+
+def test_api_rbac_confidential_document_isolation(test_client: TestClient):
+    # Ingest a restricted board memo
+    memo_payload = {
+        "documents": [
+            {
+                "id": "board_minutes_secret",
+                "title": "Board Acquisition Memo",
+                "content": "Secret Project Falcon acquisition terms and valuation.",
+                "classification": "RESTRICTED",
+                "metadata": {"confidential": True}
+            }
+        ]
+    }
+    test_client.post("/api/v1/ingest", json=memo_payload)
+
+    # 1. Employee query (should be denied access to restricted document)
+    emp_res = test_client.post("/api/v1/query", json={
+        "query": "What is the Project Falcon acquisition valuation?",
+        "user_role": "employee",
+        "enable_cache": False
+    })
+    assert emp_res.status_code == 200
+    # Employee must NOT receive citations from the restricted document
+    assert not any(c["document_id"] == "board_minutes_secret" for c in emp_res.json()["citations"])
+
+    # 2. Admin query (should retrieve the restricted document)
+    admin_res = test_client.post("/api/v1/query", json={
+        "query": "What is the Project Falcon acquisition valuation?",
+        "user_role": "admin",
+        "enable_cache": False
+    })
+    assert admin_res.status_code == 200
+    assert any(c["document_id"] == "board_minutes_secret" for c in admin_res.json()["citations"])
+
+def test_api_metrics_counter_increments(test_client: TestClient):
+    # Query to increment telemetry
+    test_client.get("/api/v1/health")
+    res = test_client.get("/api/v1/metrics")
+    assert res.status_code == 200
+    assert "rag_http_requests_total" in res.text

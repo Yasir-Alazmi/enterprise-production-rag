@@ -1,9 +1,10 @@
-"""API Route definitions and RAG pipeline execution."""
+"""API Route definitions and RAG pipeline execution with RBAC and Observability."""
 
 import time
+from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, status
 
 from src.api.schemas import (
     Citation,
@@ -18,6 +19,7 @@ from src.api.schemas import (
 from src.cache.semantic_cache import SemanticCache
 from src.core.config import settings
 from src.core.logging import get_logger
+from src.core.metrics import metrics_collector
 from src.evaluation.metrics import RAGEvaluator
 from src.guardrails.injection_detector import InjectionDetector
 from src.guardrails.pii_sanitizer import PIISanitizer
@@ -31,6 +33,8 @@ from src.retrieval.vector_store import DenseVectorStore
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1")
 
+STORAGE_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "storage"
+
 # Global pipeline instances
 chunker = RecursiveTokenChunker(chunk_size=settings.chunk_size, chunk_overlap=settings.chunk_overlap)
 bm25_index = BM25Index(k1=settings.sparse_k1, b=settings.sparse_b)
@@ -41,22 +45,32 @@ sanitizer = PIISanitizer()
 injection_detector = InjectionDetector()
 semantic_cache = SemanticCache(
     similarity_threshold=settings.cache_similarity_threshold,
-    ttl_seconds=settings.cache_ttl_seconds
+    ttl_seconds=settings.cache_ttl_seconds,
+    max_entries=1000
 )
 evaluator = RAGEvaluator()
 
 @router.get("/health", response_model=HealthResponse)
 def health_check() -> HealthResponse:
-    """Verify service status and active index counters."""
+    """Verify service status, active indexes, and cache health."""
     return HealthResponse(
         indexed_chunks=len(vector_store.chunks_map),
         cache_entries=len(semantic_cache.cache),
         cache_stats=semantic_cache.stats()
     )
 
+@router.get("/metrics")
+def metrics() -> Response:
+    """Expose Prometheus operational telemetry."""
+    text_content = metrics_collector.export_text(
+        cache_stats=semantic_cache.stats(),
+        indexed_chunks=len(vector_store.chunks_map)
+    )
+    return Response(content=text_content, media_type="text/plain; version=0.0.4; charset=utf-8")
+
 @router.post("/ingest", response_model=IngestResponse, status_code=status.HTTP_201_CREATED)
 def ingest_documents(payload: IngestRequest) -> IngestResponse:
-    """Ingest, chunk, and index a collection of documents."""
+    """Ingest, chunk, index, and optionally persist documents with RBAC classifications."""
     all_chunks: List[TextChunk] = []
 
     for doc_payload in payload.documents:
@@ -64,6 +78,7 @@ def ingest_documents(payload: IngestRequest) -> IngestResponse:
             id=doc_payload.id,
             title=doc_payload.title,
             content=doc_payload.content,
+            classification=doc_payload.classification or "INTERNAL",
             metadata=doc_payload.metadata
         )
         chunks = chunker.split_document(doc)
@@ -73,15 +88,20 @@ def ingest_documents(payload: IngestRequest) -> IngestResponse:
         bm25_index.index_chunks(all_chunks)
         vector_store.index_chunks(all_chunks)
 
+        if payload.persist_to_disk:
+            vector_store.save_to_disk(STORAGE_DIR)
+            bm25_index.save_to_disk(STORAGE_DIR)
+
     logger.info("Ingested %d documents (%d chunks)", len(payload.documents), len(all_chunks))
     return IngestResponse(
         indexed_documents=len(payload.documents),
-        indexed_chunks=len(all_chunks)
+        indexed_chunks=len(all_chunks),
+        persisted=payload.persist_to_disk
     )
 
 @router.post("/query", response_model=QueryResponse)
 def query_pipeline(request: QueryRequest) -> QueryResponse:
-    """Execute end-to-end RAG query with guardrails, caching, and reranking."""
+    """Execute end-to-end RAG query with RBAC clearance, guardrails, and caching."""
     start_time = time.perf_counter()
 
     # 1. Adversarial Injection Screening
@@ -101,7 +121,7 @@ def query_pipeline(request: QueryRequest) -> QueryResponse:
     if settings.enable_pii_masking:
         sanitized_query, was_sanitized, detected_pii = sanitizer.sanitize(request.query)
 
-    # 3. Semantic Cache Check
+    # 3. Semantic Cache Check (scoped to identical queries)
     query_vec = vector_store._embed(sanitized_query)
     if request.enable_cache:
         cached_result = semantic_cache.lookup(sanitized_query, query_vec)
@@ -119,14 +139,18 @@ def query_pipeline(request: QueryRequest) -> QueryResponse:
                 detected_pii=detected_pii
             )
 
-    # 4. Hybrid Retrieval
-    candidates = hybrid_retriever.search(sanitized_query, top_k=request.top_k * 2)
+    # 4. Hybrid Retrieval with RBAC filtering
+    candidates = hybrid_retriever.search(
+        sanitized_query,
+        top_k=request.top_k * 2,
+        user_role=request.user_role
+    )
 
     if not candidates:
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
         return QueryResponse(
             query=request.query,
-            answer="No relevant documentation was found to answer this query.",
+            answer="No relevant documentation matching your security clearance was found.",
             citations=[],
             cached=False,
             latency_ms=round(elapsed_ms, 2),
@@ -147,17 +171,17 @@ def query_pipeline(request: QueryRequest) -> QueryResponse:
             chunk_id=chunk.chunk_id,
             document_id=chunk.document_id,
             section=chunk.metadata.get("section", "General"),
+            classification=chunk.classification,
             content_snippet=snippet,
             relevance_score=score
         ))
 
-    # Construct synthesized answer with exact grounding references
     primary_chunk = top_chunks[0]
     sec = primary_chunk.metadata.get("section", "General")
     doc_title = primary_chunk.metadata.get("document_title", primary_chunk.document_id)
     answer = f"According to {doc_title} (Section: {sec}), {primary_chunk.content.strip()}"
 
-    # 7. Store in Semantic Cache
+    # 7. Store in Bounded LRU Cache
     if request.enable_cache:
         cits_dict = [c.model_dump() for c in citations]
         semantic_cache.store(sanitized_query, query_vec, answer, cits_dict)

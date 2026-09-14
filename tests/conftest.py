@@ -22,6 +22,7 @@ Encryption at rest must use AES-256 with customer-managed keys.
 Data in transit requires TLS 1.3 across all communication channels.
 Incident response for P1 critical events must occur within 15 minutes.
 Disaster recovery requires an RPO of 1 hour and RTO of 4 hours.""",
+        classification="INTERNAL",
         metadata={"category": "security"}
     )
 

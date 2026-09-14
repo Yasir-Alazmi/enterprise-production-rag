@@ -1,4 +1,4 @@
-"""Recursive character and semantic token chunker."""
+"""Recursive character and semantic token chunker with ACL propagation."""
 
 import re
 from typing import Any, Dict, List
@@ -18,6 +18,7 @@ class TextChunk(BaseModel):
     content: str
     chunk_index: int
     token_count: int
+    classification: str = Field(default="INTERNAL")
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 class RecursiveTokenChunker:
@@ -39,11 +40,10 @@ class RecursiveTokenChunker:
         return max(1, int(len(words) * 1.3))
 
     def split_document(self, document: Document) -> List[TextChunk]:
-        """Split a Document into bounded, overlapping TextChunks."""
+        """Split a Document into bounded, overlapping TextChunks with security tags."""
         if not document.content.strip():
             return []
 
-        # Split document by paragraphs first
         paragraphs = re.split(r"\n\s*\n", document.content)
         current_section = "General"
 
@@ -57,7 +57,6 @@ class RecursiveTokenChunker:
             if not para:
                 continue
 
-            # Check if paragraph is a markdown header
             header_match = re.match(r"^(#{1,4})\s+(.+)$", para)
             if header_match:
                 current_section = header_match.group(2).strip()
@@ -70,7 +69,6 @@ class RecursiveTokenChunker:
                 raw_chunks.append(chunk_text)
                 section_tags.append(current_section)
 
-                # Apply overlap from end of current buffer
                 overlap_buffer: List[str] = []
                 overlap_tokens = 0
                 for item in reversed(current_buffer):
@@ -91,7 +89,6 @@ class RecursiveTokenChunker:
             raw_chunks.append(" ".join(current_buffer))
             section_tags.append(current_section)
 
-        # Build output models
         chunks: List[TextChunk] = []
         for idx, (chunk_text, section) in enumerate(zip(raw_chunks, section_tags)):
             chunk_id = f"{document.id}_c{idx:03d}"
@@ -99,7 +96,8 @@ class RecursiveTokenChunker:
             meta.update({
                 "document_title": document.title,
                 "section": section,
-                "chunk_index": idx
+                "chunk_index": idx,
+                "classification": document.classification
             })
             chunks.append(TextChunk(
                 chunk_id=chunk_id,
@@ -107,8 +105,9 @@ class RecursiveTokenChunker:
                 content=chunk_text,
                 chunk_index=idx,
                 token_count=self.estimate_tokens(chunk_text),
+                classification=document.classification,
                 metadata=meta
             ))
 
-        logger.info("Split document '%s' into %d chunks", document.id, len(chunks))
+        logger.info("Split document '%s' [%s] into %d chunks", document.id, document.classification, len(chunks))
         return chunks
