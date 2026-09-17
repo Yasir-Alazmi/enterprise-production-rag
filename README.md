@@ -109,7 +109,7 @@ Measured locally across 100 consecutive requests on Windows (AMD64, Python 3.13)
 > **CV / Resume Technical Representation**: *"Architected an Enterprise RAG Reference Platform featuring hybrid retrieval (BM25 + Dense RRF), zero-trust JWT authentication with RBAC, and pluggable synthesis engines, achieving 2.37 ms p50 latency for the deterministic local pipeline (excluding external LLM network latency)."*
 
 ### Automated RAG Evaluation Report (`scripts/evaluate_rag.py`)
-Evaluated against the Golden Reference Corpus across multi-topic enterprise domains:
+Evaluated against the Golden Reference Corpus (automated regression harness with 4 domain queries, ground-truth documents, and PII/injection checks):
 
 | Evaluation Metric | Aggregate Score | Target SLA |
 | :--- | :--- | :--- |
