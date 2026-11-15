@@ -55,3 +55,6 @@ data/indexes/
 data/cache/
 *.sqlite3
 *.db
+
+# Downloaded benchmark data
+data/beir/

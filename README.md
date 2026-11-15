@@ -7,7 +7,7 @@
 [![Prometheus](https://img.shields.io/badge/Prometheus-Metrics-E6522C?style=flat-square&logo=prometheus&logoColor=white)](https://prometheus.io/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
 
-An enterprise reference architecture and engineering blueprint for high-security, role-based hybrid Retrieval-Augmented Generation (RAG). Built for mission-critical enterprise environments requiring zero-trust identity verification, hierarchical RBAC filtering inside retrieval, adversarial injection defense, PII sanitization, dual-mode embedding engines, pluggable LLM generation abstractions, atomic disk persistence, and comprehensive Prometheus telemetry.
+A small reference implementation of role-based hybrid Retrieval-Augmented Generation (RAG): JWT authentication with role-based access control applied inside retrieval, BM25 + dense retrieval fused with Reciprocal Rank Fusion, prompt-injection and PII guards, and a role-scoped semantic cache. It is a learning and architecture project: it has not been deployed or load-tested, and its default components are lightweight stand-ins (see [What the components really are](#what-the-components-really-are)). Retrieval quality is measured on a public benchmark below.
 
 ---
 
@@ -42,7 +42,7 @@ An enterprise reference architecture and engineering blueprint for high-security
               └── Dense Vector Store (Pluggable Embedding Engine)
                                 │
                                 ▼
-                  [ Cross-Encoder Re-Ranking ]
+                  [ Heuristic Re-Ranking ]
                   (Joint Query-Document Interaction)
                                 │
                                 ▼
@@ -68,8 +68,8 @@ An enterprise reference architecture and engineering blueprint for high-security
 
 ### 2. Dual-Mode Embedding Engine Interface (`src/retrieval/embeddings.py`)
 - **Interface Contract (`BaseEmbeddingEngine`)**: Decouples the vector store and cache from underlying embedding algorithms.
-- **`DeterministicHashingEmbedding` (128-d)**: High-performance, zero-dependency tokenized sign-hash projection into a normalized unit hypersphere. Enables ultra-fast offline CI matrices and reproducible benchmarks without paid API keys or GPU overhead.
-- **`SentenceTransformerEmbedding` (384-d)**: Neural semantic embeddings using Sentence Transformers (`all-MiniLM-L6-v2`) with graceful fallback.
+- **`DeterministicHashingEmbedding` (128-d, the default)**: a zero-dependency sign-hash projection of tokens. It is **not semantic** (it only encodes which words occur) and is meant for offline CI and reproducible tests. On a real benchmark it performs far below BM25 and lowers the hybrid result (see Results); use the neural engine for real retrieval.
+- **`SentenceTransformerEmbedding` (384-d)**: neural embeddings using Sentence Transformers (`all-MiniLM-L6-v2`); falls back to the hashing engine if the package is missing. This is the configuration that gives the benchmark gains below.
 
 ### 3. Pluggable Answer Generation Abstraction (`src/generation/generator.py`)
 - **Protocol Contract (`BaseAnswerGenerator`)**: Supports interchangeable synthesis backends via factory configuration (`GENERATION_PROVIDER`).
@@ -92,8 +92,30 @@ An enterprise reference architecture and engineering blueprint for high-security
 
 ## Empirical Benchmark & Evaluation Results
 
+### Retrieval quality on a public benchmark (`scripts/evaluate_beir.py`)
+
+BEIR **SciFact**: 5,183 scientific abstracts, 300 test queries with relevance judgements. Each row uses this repository's own components on the same corpus. Latency is one query at a time on a CPU (Windows 11, Python 3.12, no GPU); full output in [`results/beir_scifact.md`](results/beir_scifact.md).
+
+| Configuration | nDCG@10 | MRR@10 | Recall@100 | p50 latency (ms) |
+| :--- | :--- | :--- | :--- | :--- |
+| BM25 only | 0.661 | 0.628 | 0.876 | 13.84 |
+| Dense, default hashing embedding | 0.172 | 0.152 | 0.439 | 9.02 |
+| Hybrid (BM25 + hashing dense), default settings | 0.346 | 0.320 | 0.844 | 25.3 |
+| Hybrid (hashing) + heuristic re-ranker | 0.491 | 0.456 | 0.844 | 44.8 |
+| Dense, MiniLM neural embedding | 0.648 | 0.607 | 0.925 | 22.32 |
+| **Hybrid (BM25 + MiniLM), RRF** | 0.679 | 0.638 | 0.955 | 44.81 |
+| Hybrid (MiniLM) + heuristic re-ranker | 0.647 | 0.611 | 0.955 | 51.68 |
+
+Sanity check: BM25 (0.661) and MiniLM dense (0.648) are close to the published BEIR numbers for SciFact (about 0.665 and 0.645), so the harness is measuring correctly.
+
+What the numbers say:
+- **With the neural embedding, hybrid retrieval is the best configuration** (0.679), a modest gain over BM25 alone (+0.018 nDCG@10) and a clearer gain in Recall@100 (0.955 vs 0.876).
+- **The default hashing configuration hurts.** Hybrid with hashing scores 0.346, about half of BM25 alone, because the default fusion weight (0.60) gives most of the vote to a non-semantic signal. The default is for offline tests only.
+- **The heuristic re-ranker helps weak first stages and hurts strong ones**: +0.145 on the hashing hybrid, -0.032 on the neural hybrid. It is a hand-written scoring function (query-term coverage, density, position), not a trained cross-encoder.
+- **Latency is tens of milliseconds at 5,183 documents** (p50 13.8 ms for BM25, 44.8 ms for neural hybrid), not the 2 ms measured below on a two-document corpus. The vector store is a brute-force in-memory scan, so it will not scale to millions of documents without a real index.
+
 ### Performance Benchmark (`scripts/benchmark.py`)
-Measured locally across 100 consecutive requests on Windows (AMD64, Python 3.13):
+**Corpus: two sample documents.** These latencies measure the pipeline overhead on a tiny corpus and say nothing about performance at realistic size (see the benchmark above). Measured locally across 100 consecutive requests on Windows (AMD64, Python 3.13):
 
 | Performance Metric | Cold Hybrid Retrieval + Synthesis | Semantic Cache Hit |
 | :--- | :--- | :--- |
@@ -102,14 +124,13 @@ Measured locally across 100 consecutive requests on Windows (AMD64, Python 3.13)
 | **p99 Latency** | **4.02 ms** | **2.67 ms** |
 | **Mean Execution Time** | **2.44 ms** | **2.08 ms** |
 | **Throughput Capacity** | > 400 req/sec | > 500 req/sec |
-| **Automated Test Suite** | **67 / 67 Passed (100%)** | 13 Test Suites |
+| **Automated Test Suite** | 67 tests passing (verified 2026-11-15) | 14 test files |
 
-> **Benchmark Scope Note**: Latency covers full Ingestion -> PII Sanitization -> Injection Screening -> Role-Scoped Cache -> Hybrid Retrieval -> Cross-Encoder -> Deterministic Grounded Synthesis. Live third-party external LLM API calls incur separate network roundtrips (~300ms - 1500ms).
->
-> **CV / Resume Technical Representation**: *"Architected an Enterprise RAG Reference Platform featuring hybrid retrieval (BM25 + Dense RRF), zero-trust JWT authentication with RBAC, and pluggable synthesis engines, achieving 2.37 ms p50 latency for the deterministic local pipeline (excluding external LLM network latency)."*
+> **Benchmark Scope Note**: Latency covers full Ingestion -> PII Sanitization -> Injection Screening -> Role-Scoped Cache -> Hybrid Retrieval -> Heuristic Re-Ranker -> Deterministic Grounded Synthesis. Live third-party external LLM API calls incur separate network roundtrips (~300ms - 1500ms).
+
 
 ### Automated RAG Evaluation Report (`scripts/evaluate_rag.py`)
-Evaluated against the Golden Reference Corpus (automated regression harness with 4 domain queries, ground-truth documents, and PII/injection checks):
+**This is a regression test, not a quality estimate.** It runs 4 queries against 2 sample documents (with ground-truth documents and PII/injection checks); with n = 4 each metric moves in large steps. Use the SciFact benchmark above for retrieval quality.
 
 | Evaluation Metric | Aggregate Score | Target SLA |
 | :--- | :--- | :--- |
@@ -121,6 +142,20 @@ Evaluated against the Golden Reference Corpus (automated regression harness with
 | **Answer Citation Correctness** | **1.000** | 1.00 (Zero Hallucinated Sources) |
 | **Mean Retrieval Latency** | **0.22 ms** | < 5.00 ms |
 | **Mean Generation Latency (Local)** | **0.10 ms** | < 5.00 ms |
+
+---
+
+## What the components really are
+
+| Component | Name in the code | What it actually is |
+| :--- | :--- | :--- |
+| Default embedding | `DeterministicHashingEmbedding` | Token sign-hash projection, not semantic; for CI and tests |
+| Neural embedding | `SentenceTransformerEmbedding` | `all-MiniLM-L6-v2` when installed |
+| Re-ranker | `CrossEncoderReranker` | Hand-written lexical heuristic (coverage, density, position); the class name is historical |
+| Default generator | `DeterministicGroundedGenerator` | Extractive: stitches retrieved sentences and adds citations; no language model |
+| Optional generator | `LLMAnswerGenerator` | Calls an OpenAI-compatible or Ollama endpoint; not exercised in the benchmark |
+| Vector store | `DenseVectorStore` | In-memory brute-force cosine scan with JSON persistence |
+| Evaluation corpus (default) | Golden Reference Corpus | 2 documents and 4 queries |
 
 ---
 
@@ -167,7 +202,7 @@ enterprise-production-rag/
 │   ├── generation/               # Pluggable generation abstraction (Grounded + LLM)
 │   ├── guardrails/               # PII sanitization and adversarial injection screening
 │   ├── ingestion/                # Document parsing and recursive token chunker
-│   ├── reranker/                 # Cross-encoder joint interaction scorer
+│   ├── reranker/                 # Lexical heuristic re-ranker (module name is historical; not a neural cross-encoder)
 │   └── retrieval/                # Dual-mode embeddings, BM25, and hybrid RRF retriever
 ├── tests/                        # 67 automated tests across 13 test suites (100% passing)
 ├── Dockerfile                    # Multi-stage production container
