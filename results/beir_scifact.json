@@ -1,0 +1,68 @@
+{
+ "meta": {
+  "dataset": "BEIR SciFact (test)",
+  "docs": 5183,
+  "queries": 300,
+  "neural": "all-MiniLM-L6-v2 via sentence-transformers",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.12.9"
+ },
+ "results": [
+  {
+   "config": "bm25",
+   "ndcg@10": 0.6613,
+   "mrr@10": 0.6283,
+   "recall@100": 0.8759,
+   "latency_ms_p50": 13.84,
+   "latency_ms_p95": 32.35
+  },
+  {
+   "config": "dense-hash",
+   "ndcg@10": 0.172,
+   "mrr@10": 0.1523,
+   "recall@100": 0.4389,
+   "latency_ms_p50": 9.02,
+   "latency_ms_p95": 10.9
+  },
+  {
+   "config": "hybrid-hash",
+   "ndcg@10": 0.3459,
+   "mrr@10": 0.3197,
+   "recall@100": 0.8439,
+   "latency_ms_p50": 25.3,
+   "latency_ms_p95": 45.5
+  },
+  {
+   "config": "hybrid-hash+heuristic-rerank",
+   "ndcg@10": 0.4906,
+   "mrr@10": 0.4559,
+   "recall@100": 0.8439,
+   "latency_ms_p50": 44.8,
+   "latency_ms_p95": 74.5
+  },
+  {
+   "config": "dense-neural",
+   "ndcg@10": 0.6484,
+   "mrr@10": 0.6068,
+   "recall@100": 0.925,
+   "latency_ms_p50": 22.32,
+   "latency_ms_p95": 33.91
+  },
+  {
+   "config": "hybrid-neural",
+   "ndcg@10": 0.6788,
+   "mrr@10": 0.638,
+   "recall@100": 0.955,
+   "latency_ms_p50": 44.81,
+   "latency_ms_p95": 63.58
+  },
+  {
+   "config": "hybrid-neural+heuristic-rerank",
+   "ndcg@10": 0.6471,
+   "mrr@10": 0.6114,
+   "recall@100": 0.955,
+   "latency_ms_p50": 51.68,
+   "latency_ms_p95": 82.74
+  }
+ ]
+}

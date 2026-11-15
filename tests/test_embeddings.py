@@ -1,5 +1,7 @@
 """Unit tests for pluggable embedding engines."""
 
+import sys
+
 import numpy as np
 import pytest
 
@@ -39,8 +41,9 @@ def test_batch_embedding():
     assert matrix.shape == (3, 32)
 
 
-def test_sentence_transformer_fallback():
-    # In environments without sentence_transformers, falls back gracefully
+def test_sentence_transformer_fallback(monkeypatch):
+    # Simulate an environment without sentence_transformers (independent of what is installed)
+    monkeypatch.setitem(sys.modules, "sentence_transformers", None)
     engine = SentenceTransformerEmbedding(dimension=256)
     assert engine.dimension == 256
     vec = engine.embed_text("Enterprise access control")

@@ -56,7 +56,7 @@ Standard consumer LLM integrations and simplistic vector search pipelines face s
                                      |
                                      v
 +-------------------------------------------------------------------------+
-|                      Cross-Encoder Re-Ranking                           |
+|                      Heuristic Re-Ranking                               |
 |  - Joint Query-Document Coverage & Positional Proximity Scoring         |
 |  - Re-sorts top candidates to eliminate semantic false positives       |
 +------------------------------------+------------------------------------+
